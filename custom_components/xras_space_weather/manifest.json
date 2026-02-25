@@ -1,0 +1,12 @@
+{
+  "domain": "xras_space_weather",
+  "name": "ИКИ РАН: Космическая погода",
+  "codeowners": ["@Eugen417"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/Eugen417/HA_xras_space_weather",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "requirements": ["beautifulsoup4==4.12.3"],
+  "version": "0.0.1-alfa"
+}
