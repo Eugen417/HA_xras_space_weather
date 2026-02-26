@@ -1,4 +1,4 @@
-"""Окно настройки интеграции ИКИ РАН."""
+"""Окно настройки интеграции ИКИ РАН: Космическая погода."""
 import logging
 import voluptuous as vol
 from homeassistant import config_entries
