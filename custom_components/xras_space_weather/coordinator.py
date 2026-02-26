@@ -31,7 +31,8 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(minutes=UPDATE_INTERVAL_MINUTES),
         )
         self.city_alias = city_alias
-        self.city_internal_id = CITIES[city_alias]["id"] # Правильный ключ для RAL5 и т.д.
+        # Вытаскиваем внутренний ID (например "QYPM") для API ИКИ РАН
+        self.city_internal_id = CITIES[city_alias]["id"] 
         self.city_name = CITIES[city_alias]["name"]
         self.session = async_get_clientsession(hass)
 
@@ -50,7 +51,7 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         """Главная функция: скачивает всё и парсит данные."""
         try:
-            # 1. Формируем ссылки с правильным внутренним ID
+            # 1. Формируем ссылки с правильным внутренним ID города
             url_ai = f"{URL_JSON_BASE}/ai_{self.city_internal_id}.json"
             url_xray = f"{URL_JSON_BASE}/xray_{self.city_internal_id}.json"
             url_kp_fact = f"{URL_JSON_BASE}/kp_{self.city_internal_id}.json"
@@ -74,24 +75,26 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
 
             ai_data, xray_data, kp_fact_data, kp_forecast_data, aurora_html, flares_html = results
 
+            # 3. Парсим данные в словарь. 
+            # ВАЖНО: Ключи здесь строго совпадают с ключами SENSOR_TYPES в sensor.py
             parsed_data = {}
 
             # --- Индекс сияний (AI) ---
             if ai_data and "data" in ai_data and len(ai_data["data"]) > 0:
-                parsed_data["aurora_index"] = ai_data["data"][0].get("ai", "unknown")
+                parsed_data["aurora_index_latest"] = ai_data["data"][0].get("ai", "unknown")
                 parsed_data["aurora_time"] = ai_data["data"][0].get("time", "")
 
             # --- Рентгеновское излучение (X-Ray) ---
             if xray_data and "data" in xray_data and len(xray_data["data"]) > 0:
-                parsed_data["solar_xray"] = xray_data["data"][0].get("long", "unknown")
+                parsed_data["solar_xray_latest"] = xray_data["data"][0].get("long", "unknown")
 
             # --- ФАКТИЧЕСКИЕ ДАННЫЕ И ТЕКУЩИЙ KP ---
             if kp_fact_data and "data" in kp_fact_data and len(kp_fact_data["data"]) >= 2:
                 today_fact = kp_fact_data["data"][0]
                 yesterday_fact = kp_fact_data["data"][1]
                 
-                parsed_data["kp_max_today"] = today_fact.get("max_kp", "unknown")
-                parsed_data["f10_today"] = today_fact.get("f10", "unknown")
+                parsed_data["kp_forecast_today"] = today_fact.get("max_kp", "unknown")
+                parsed_data["f10_forecast_today"] = today_fact.get("f10", "unknown")
 
                 latest_kp = "unknown"
                 hours = ['h00', 'h03', 'h06', 'h09', 'h12', 'h15', 'h18', 'h21']
@@ -121,24 +124,24 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
                         break
 
             # --- ПАРСИНГ HTML: Вероятность сияний ---
-            parsed_data["aurora_probability"] = "unknown"
+            parsed_data["aurora_probability_local"] = "unknown"
             soup_aurora = BeautifulSoup(aurora_html, 'html.parser')
             for loc in soup_aurora.select('.aurora_location'):
                 name_span = loc.select_one('.aurora_location_name')
                 if name_span and self.city_name in name_span.text:
                     val_span = loc.select_one('.aurora_location_value')
                     if val_span:
-                        parsed_data["aurora_probability"] = val_span.text.replace(' %', '').strip()
+                        parsed_data["aurora_probability_local"] = val_span.text.replace(' %', '').strip()
                         break
 
             # --- ПАРСИНГ HTML: Вспышки на солнце ---
-            parsed_data["flare_status"] = "unknown"
-            parsed_data["flare_info"] = "unknown"
+            parsed_data["solar_flare_current_status"] = "unknown"
+            parsed_data["solar_flare_last_info"] = "unknown"
             soup_flares = BeautifulSoup(flares_html, 'html.parser')
             flare_nodes = soup_flares.select('.graph_lastdata_text')
             if len(flare_nodes) >= 2:
-                parsed_data["flare_status"] = flare_nodes[0].text.strip()
-                parsed_data["flare_info"] = flare_nodes[1].text.strip()
+                parsed_data["solar_flare_current_status"] = flare_nodes[0].text.strip()
+                parsed_data["solar_flare_last_info"] = flare_nodes[1].text.strip()
 
             return parsed_data
 
