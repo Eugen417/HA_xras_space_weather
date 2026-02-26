@@ -14,6 +14,7 @@
 ### Шаг 1: Добавление в HACS
 
 Вы можете нажать на кнопку ниже, чтобы автоматически открыть страницу установки в вашем Home Assistant:
+[![Open your Home Assistant instance and open a repository window in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Eugen417&repository=HA_xras_space_weather&category=Integration)
 
 Или выполните установку вручную:
 
