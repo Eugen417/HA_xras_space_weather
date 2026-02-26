@@ -1,6 +1,7 @@
 """Инициализация интеграции ИКИ РАН: Космическая погода."""
 import logging
 import os
+import time
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -18,7 +19,7 @@ PLATFORMS = ["sensor"]
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Настройка интеграции после выбора города."""
     
-    # === РЕГИСТРАЦИЯ ФРОНТЕНДА (JS-КАРТОЧКИ И КАРТИНОК) ===
+    # === РЕГИСТРАЦИЯ ФРОНТЕНДА (JS-КАРТОЧКИ И КАРТИНОК) С ЗАЩИТОЙ ОТ КЭША ===
     integration_dir = os.path.dirname(__file__)
     www_dir = os.path.join(integration_dir, "www")
     
@@ -30,17 +31,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 cache_headers=False,
             )
         ])
-        # v=16 для принудительного сброса кэша во всех браузерах
-        add_extra_js_url(hass, "/xras_sw_static/space-weather-card.js?v=25")
-        _LOGGER.info("Фронтенд космической погоды успешно зарегистрирован")
+        
+        # Генерируем уникальный хэш на основе текущего времени при каждом старте HA.
+        # Это гарантирует, что Safari и iOS Companion App скачают свежую версию скрипта.
+        cache_buster = str(time.time()).replace(".", "")
+        add_extra_js_url(hass, f"/xras_sw_static/space-weather-card.js?v={cache_buster}")
+        
+        _LOGGER.info("Фронтенд космической погоды успешно зарегистрирован (v=%s)", cache_buster)
     else:
         _LOGGER.error("Папка www не найдена по пути %s", www_dir)
     # =======================================================
 
     hass.data.setdefault(DOMAIN, {})
-    city_id = entry.data["city_id"]
+    city_alias = entry.data["city_id"]
     
-    coordinator = XrasDataUpdateCoordinator(hass, city_id)
+    coordinator = XrasDataUpdateCoordinator(hass, city_alias)
     await coordinator.async_config_entry_first_refresh()
 
     hass.data[DOMAIN][entry.entry_id] = coordinator
