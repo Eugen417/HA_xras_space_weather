@@ -1,0 +1,6 @@
+{
+  "name": "Space Weather IKI RAN",
+  "content_type": "integration",
+  "render_readme": true,
+  "persistent_directory": "www"
+}
