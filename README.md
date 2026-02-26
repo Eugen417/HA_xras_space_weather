@@ -13,8 +13,11 @@
 
 ### Шаг 1: Добавление в HACS
 
-Вы можете нажать на кнопку **Add Repository** выше, либо выполнить установку вручную:
+Вы можете нажать на кнопку ниже, чтобы автоматически открыть страницу установки в вашем Home Assistant:
 
+[![Open your Home Assistant instance and open a repository window in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Eugen417&repository=HA_xras_space_weather&category=Integration)
+
+Или выполните установку вручную:
 1. Откройте **HACS** -> **Integrations**.
 2. В верхнем меню нажмите `...` -> **Custom repositories**.
 3. Вставьте URL `https://github.com/Eugen417/HA_xras_space_weather` и выберите категорию **Integration**.
