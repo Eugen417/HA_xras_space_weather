@@ -8,14 +8,15 @@ from .const import DOMAIN, CITIES
 
 _LOGGER = logging.getLogger(__name__)
 
+# Используем "длинные" ключи, чтобы старые и новые карточки легко их находили через .includes()
 SENSOR_TYPES = {
-    "aurora_probability": {"name": "Aurora Probability Local", "unit": "%", "icon": "mdi:aurora"},
-    "flare_status": {"name": "Solar Flare Current Status", "unit": None, "icon": "mdi:white-balance-sunny"},
-    "flare_info": {"name": "Solar Flare Last Info", "unit": None, "icon": "mdi:information-outline"},
-    "aurora_index": {"name": "Aurora Index Latest", "unit": "AI", "icon": "mdi:chart-bell-curve-cumulative"},
-    "solar_xray": {"name": "Solar X-Ray Latest", "unit": "W/m²", "icon": "mdi:white-balance-sunny"},
-    "kp_max_today": {"name": "Kp Forecast Today", "unit": "Kp", "icon": "mdi:magnet"},
-    "f10_today": {"name": "F10 Forecast Today", "unit": "sfu", "icon": "mdi:sun-wireless"},
+    "aurora_probability_local": {"name": "Aurora Probability Local", "unit": "%", "icon": "mdi:aurora"},
+    "solar_flare_current_status": {"name": "Solar Flare Current Status", "unit": None, "icon": "mdi:white-balance-sunny"},
+    "solar_flare_last_info": {"name": "Solar Flare Last Info", "unit": None, "icon": "mdi:information-outline"},
+    "aurora_index_latest": {"name": "Aurora Index Latest", "unit": "AI", "icon": "mdi:chart-bell-curve-cumulative"},
+    "solar_xray_latest": {"name": "Solar X-Ray Latest", "unit": "W/m²", "icon": "mdi:white-balance-sunny"},
+    "kp_forecast_today": {"name": "Kp Forecast Today", "unit": "Kp", "icon": "mdi:magnet"},
+    "f10_forecast_today": {"name": "F10 Forecast Today", "unit": "sfu", "icon": "mdi:sun-wireless"},
     "kp_forecast_tomorrow": {"name": "Kp Forecast Tomorrow", "unit": "Kp", "icon": "mdi:magnet-on"},
     "kp_current": {"name": "Kp Current", "unit": "Kp", "icon": "mdi:magnet"},
 }
@@ -23,7 +24,7 @@ SENSOR_TYPES = {
 async def async_setup_entry(hass, entry, async_add_entities):
     """Настройка сенсоров."""
     coordinator = hass.data[DOMAIN][entry.entry_id]
-    city_alias = entry.data["city_id"] # В entry_id теперь хранится alias (например "moscow")
+    city_alias = entry.data["city_id"] # Например, "moscow" или "abakan"
     
     sensors = []
     for sensor_type, sensor_info in SENSOR_TYPES.items():
@@ -44,14 +45,13 @@ class XrasSensor(CoordinatorEntity, SensorEntity):
         city_info = CITIES[city_alias]
         self.city_name = city_info["name"]
         
-        # Уникальный Entity ID: sensor.moscow_kp_current
-        # Это позволяет добавлять несколько городов без конфликтов
+        # Уникальный Entity ID (например: sensor.moscow_kp_current)
         self.entity_id = f"sensor.{city_alias}_{sensor_type}"
         
-        # Отображаемое имя: "Kp Current (Москва)"
+        # Отображаемое имя в интерфейсе: "Kp Current (Москва)"
         self._attr_name = f"{sensor_info['name']} ({self.city_name})"
         
-        # Unique ID для внутренних настроек HA
+        # Unique ID для внутренних настроек HA (защита от конфликтов)
         self._attr_unique_id = f"xras_{city_alias}_{sensor_type}"
         self._attr_icon = sensor_info["icon"]
         self._attr_native_unit_of_measurement = sensor_info["unit"]
@@ -66,13 +66,15 @@ class XrasSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self):
+        """Получение значения сенсора из координатора."""
         if not self.coordinator.data:
             return "unknown"
         return self.coordinator.data.get(self.sensor_type, "unknown")
 
     @property
     def extra_state_attributes(self):
-        attrs = {"location_name": self.city_name}
-        if self.sensor_type == "aurora_index" and self.coordinator.data:
+        """Дополнительные атрибуты (локация и время обновления)."""
+        attrs = {"location_name": self.city_name, "city_alias": self.city_alias}
+        if self.sensor_type == "aurora_index_latest" and self.coordinator.data:
             attrs["time"] = self.coordinator.data.get("aurora_time", "")
         return attrs
