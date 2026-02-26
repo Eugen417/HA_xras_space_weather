@@ -180,11 +180,16 @@ class SpaceWeatherCard extends HTMLElement {
   getCardSize() { return 8; }
 }
 
-// ПРОВЕРКА РЕГИСТРАЦИИ (Safari Fix)
-if (!customElements.get('space-weather-card')) {
-  customElements.define('space-weather-card', SpaceWeatherCard);
+// 🛡 НАДЕЖНАЯ ПРОВЕРКА РЕГИСТРАЦИИ (Safari / iOS Fix)
+try {
+  if (!customElements.get('space-weather-card')) {
+    customElements.define('space-weather-card', SpaceWeatherCard);
+  }
+} catch (e) {
+  console.warn('⚠️ Ошибка регистрации space-weather-card:', e);
 }
 
+// Добавляем в визуальный редактор карточек
 window.customCards = window.customCards || [];
 if (!window.customCards.some(c => c.type === 'space-weather-card')) {
   window.customCards.push({
