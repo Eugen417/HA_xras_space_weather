@@ -22,17 +22,17 @@ _LOGGER = logging.getLogger(__name__)
 class XrasDataUpdateCoordinator(DataUpdateCoordinator):
     """Класс для управления скачиванием и парсингом данных."""
 
-    def __init__(self, hass, city_id):
+    def __init__(self, hass, city_alias):
         """Инициализация координатора."""
         super().__init__(
             hass,
             _LOGGER,
-            name=f"{DOMAIN}_{city_id}",
+            name=f"{DOMAIN}_{city_alias}",
             update_interval=timedelta(minutes=UPDATE_INTERVAL_MINUTES),
         )
-        self.city_id = city_id
-        self.city_alias = CITIES[city_id]["alias"]
-        self.city_name = CITIES[city_id]["name"]
+        self.city_alias = city_alias
+        self.city_internal_id = CITIES[city_alias]["id"] # Правильный ключ для RAL5 и т.д.
+        self.city_name = CITIES[city_alias]["name"]
         self.session = async_get_clientsession(hass)
 
     async def _fetch(self, url, is_json=True):
@@ -50,14 +50,14 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         """Главная функция: скачивает всё и парсит данные."""
         try:
-            # 1. Формируем ссылки
-            url_ai = f"{URL_JSON_BASE}/ai_{self.city_id}.json"
-            url_xray = f"{URL_JSON_BASE}/xray_{self.city_id}.json"
-            url_kp_fact = f"{URL_JSON_BASE}/kp_{self.city_id}.json"
-            url_kp_forecast = f"{URL_JSON_BASE}/kpf_{self.city_id}.json"
+            # 1. Формируем ссылки с правильным внутренним ID
+            url_ai = f"{URL_JSON_BASE}/ai_{self.city_internal_id}.json"
+            url_xray = f"{URL_JSON_BASE}/xray_{self.city_internal_id}.json"
+            url_kp_fact = f"{URL_JSON_BASE}/kp_{self.city_internal_id}.json"
+            url_kp_forecast = f"{URL_JSON_BASE}/kpf_{self.city_internal_id}.json"
             url_aurora_html = f"{URL_HTML_AURORA}/{self.city_alias}/"
 
-            # 2. Скачиваем всё параллельно (чтобы было быстро)
+            # 2. Скачиваем всё параллельно
             results = await asyncio.gather(
                 self._fetch(url_ai, is_json=True),
                 self._fetch(url_xray, is_json=True),
@@ -68,14 +68,12 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
                 return_exceptions=True
             )
 
-            # Проверяем, не было ли ошибок при скачивании
             for res in results:
                 if isinstance(res, Exception):
                     raise UpdateFailed(f"Ошибка параллельного запроса: {res}")
 
             ai_data, xray_data, kp_fact_data, kp_forecast_data, aurora_html, flares_html = results
 
-            # 3. Начинаем УМНЫЙ ПАРСИНГ данных (то, что мы делали в Jinja)
             parsed_data = {}
 
             # --- Индекс сияний (AI) ---
@@ -87,7 +85,7 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
             if xray_data and "data" in xray_data and len(xray_data["data"]) > 0:
                 parsed_data["solar_xray"] = xray_data["data"][0].get("long", "unknown")
 
-            # --- ФАКТИЧЕСКИЕ ДАННЫЕ И ТЕКУЩИЙ KP (Наш крутой алгоритм) ---
+            # --- ФАКТИЧЕСКИЕ ДАННЫЕ И ТЕКУЩИЙ KP ---
             if kp_fact_data and "data" in kp_fact_data and len(kp_fact_data["data"]) >= 2:
                 today_fact = kp_fact_data["data"][0]
                 yesterday_fact = kp_fact_data["data"][1]
@@ -95,17 +93,14 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
                 parsed_data["kp_max_today"] = today_fact.get("max_kp", "unknown")
                 parsed_data["f10_today"] = today_fact.get("f10", "unknown")
 
-                # Ищем самую свежую цифру Kp (вчера + сегодня)
                 latest_kp = "unknown"
                 hours = ['h00', 'h03', 'h06', 'h09', 'h12', 'h15', 'h18', 'h21']
                 
-                # Сканируем вчера
                 for h in hours:
                     val = yesterday_fact.get(h)
                     if val not in ["null", None, "", "-1", "-2"]:
                         latest_kp = str(val).replace('-', '')
                 
-                # Сканируем сегодня
                 for h in hours:
                     val = today_fact.get(h)
                     if val not in ["null", None, "", "-1", "-2"]:
@@ -113,9 +108,8 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
                 
                 parsed_data["kp_current"] = latest_kp
 
-            # --- ПРОГНОЗ НА ЗАВТРА (Умный поиск по дате) ---
+            # --- ПРОГНОЗ НА ЗАВТРА ---
             if kp_forecast_data and "data" in kp_forecast_data:
-                # Получаем завтрашнюю дату по московскому времени
                 msk_tz = timezone(timedelta(hours=3))
                 tomorrow_msk = datetime.now(msk_tz) + timedelta(days=1)
                 tmrw_str = tomorrow_msk.strftime('%Y-%m-%d')
