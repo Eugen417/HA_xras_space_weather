@@ -16,14 +16,13 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["sensor"]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Настройка интеграции после добавления города."""
+    """Настройка интеграции."""
     
-    # === РЕГИСТРАЦИЯ ФРОНТЕНДА (Bambu Lab Style) ===
     integration_dir = os.path.dirname(__file__)
     www_dir = os.path.join(integration_dir, "www")
     
     if os.path.exists(www_dir):
-        # 1. Регистрация статического пути для доступа к файлам и видео
+        # 1. Регистрация статического пути
         await hass.http.async_register_static_paths([
             StaticPathConfig(
                 url_path="/xras_sw_static",
@@ -32,19 +31,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
         ])
         
-        # 2. Динамический хэш для обхода кэша Safari/Companion App
+        # 2. Формируем URL
         cache_buster = str(time.time()).replace(".", "")
         js_url = f"/xras_sw_static/space-weather-card.js?v={cache_buster}"
         
-        # 3. Умная регистрация в Lovelace Dashboard
-        await async_register_resource(hass, js_url)
-        _LOGGER.info("Фронтенд успешно зарегистрирован (версия: %s)", cache_buster)
+        # 3. Безопасная регистрация в Lovelace
+        hass.async_create_task(async_register_resource(hass, js_url))
+        _LOGGER.info("Запущена фоновая регистрация карточки (версия: %s)", cache_buster)
     else:
         _LOGGER.error("Критическая ошибка: папка www не найдена по пути %s", www_dir)
 
     # === НАСТРОЙКА ДАТЧИКОВ ===
     hass.data.setdefault(DOMAIN, {})
-    city_alias = entry.data["city_id"] # ID города (напр. moscow)
+    city_alias = entry.data.get("city_id", "moscow") 
     
     coordinator = XrasDataUpdateCoordinator(hass, city_alias)
     await coordinator.async_config_entry_first_refresh()
@@ -54,35 +53,51 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     return True
 
+
 async def async_register_resource(hass: HomeAssistant, url: str):
-    """Автоматическое добавление карточки в ресурсы Lovelace."""
+    """Безопасное добавление карточки в ресурсы Lovelace."""
     try:
-        # Пытаемся получить доступ к системным ресурсам Lovelace
-        # Это "золотой стандарт" для работы с Companion App
+        # Ждем полной загрузки Home Assistant, чтобы Lovelace точно инициализировался
+        await hass.async_block_till_done()
+
         lovelace = hass.data.get("lovelace")
-        if lovelace and hasattr(lovelace, "resources"):
-            resources = lovelace.resources
-            if resources:
-                # Находим и удаляем старые версии этой карточки, чтобы не плодить дубликаты
-                existing = [
-                    res["id"] for res in resources.async_items() 
-                    if res["url"].startswith("/xras_sw_static/space-weather-card.js")
-                ]
-                for res_id in existing:
-                    await resources.async_delete_item(res_id)
-                
-                # Регистрируем новую версию с актуальным хэшем
-                await resources.async_create_item({
-                    "res_type": "module",
-                    "url": url
-                })
-        else:
-            # Если Lovelace недоступен (например, режим YAML), используем стандартный фолбек
+        if not lovelace or not hasattr(lovelace, "resources"):
+            _LOGGER.debug("Компонент Lovelace не найден, используем add_extra_js_url")
             add_extra_js_url(hass, url)
+            return
+
+        resources = lovelace.resources
+
+        # САМОЕ ВАЖНОЕ: Ждем загрузки уже существующих ресурсов пользователя!
+        if not resources.loaded:
+            await resources.async_load()
+
+        # Ищем, есть ли уже наша карточка
+        existing_id = None
+        for res in resources.async_items():
+            if res.get("url", "").startswith("/xras_sw_static/space-weather-card.js"):
+                existing_id = res["id"]
+                break
+
+        # Если карточка уже есть, обновляем ей URL (чтобы применился новый кэш)
+        if existing_id:
+            await resources.async_update_item(existing_id, {
+                "res_type": "module",
+                "url": url
+            })
+            _LOGGER.info("Ресурс карточки xras успешно обновлен")
+        else:
+            # Если нет - аккуратно добавляем новую, не трогая остальные 28 штук!
+            await resources.async_create_item({
+                "res_type": "module",
+                "url": url
+            })
+            _LOGGER.info("Карточка xras успешно добавлена в ресурсы Lovelace")
+
     except Exception as err:
-        # Если что-то пошло не так (реестр заблокирован), используем запасной метод
-        _LOGGER.debug("Не удалось обновить реестр ресурсов (используем add_extra_js_url): %s", err)
+        _LOGGER.error("Ошибка при регистрации ресурса Lovelace: %s", err)
         add_extra_js_url(hass, url)
+
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Удаление интеграции."""
