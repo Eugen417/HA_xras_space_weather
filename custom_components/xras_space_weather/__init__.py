@@ -56,11 +56,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     return True
 
-
 async def async_register_resource(hass: HomeAssistant, url: str):
     """Безопасное добавление карточки в ресурсы Lovelace."""
     try:
-        # Ждем полной загрузки Home Assistant, чтобы Lovelace точно инициализировался
         await hass.async_block_till_done()
 
         lovelace = hass.data.get("lovelace")
@@ -71,18 +69,15 @@ async def async_register_resource(hass: HomeAssistant, url: str):
 
         resources = lovelace.resources
 
-        # САМОЕ ВАЖНОЕ: Ждем загрузки уже существующих ресурсов пользователя!
         if not resources.loaded:
             await resources.async_load()
 
-        # Ищем, есть ли уже наша карточка (по имени файла, чтобы найти и старые пути)
         existing_id = None
         for res in resources.async_items():
             if "space-weather-card.js" in res.get("url", ""):
                 existing_id = res["id"]
                 break
 
-        # Если карточка уже есть, обновляем ей URL (чтобы применился новый путь и кэш)
         if existing_id:
             await resources.async_update_item(existing_id, {
                 "res_type": "module",
@@ -90,7 +85,6 @@ async def async_register_resource(hass: HomeAssistant, url: str):
             })
             _LOGGER.info("Ресурс карточки xras успешно обновлен")
         else:
-            # Если нет - аккуратно добавляем новую, не трогая остальные 28 штук!
             await resources.async_create_item({
                 "res_type": "module",
                 "url": url
@@ -100,7 +94,6 @@ async def async_register_resource(hass: HomeAssistant, url: str):
     except Exception as err:
         _LOGGER.error("Ошибка при регистрации ресурса Lovelace: %s", err)
         add_extra_js_url(hass, url)
-
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Удаление интеграции."""
