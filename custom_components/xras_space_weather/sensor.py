@@ -46,17 +46,24 @@ class XrasSensor(CoordinatorEntity, SensorEntity):
         self.city_name = city_info["name"]
         self.english_city_name = city_alias.replace('_', ' ').title()
         
+        # Умный выбор города и производителя для блока "Служба"
+        is_ru = coordinator.hass.config.language.startswith('ru')
+        display_city = self.city_name if is_ru else self.english_city_name
+        manufacturer_name = "ИКИ РАН" if is_ru else "IKI RAN"
+        
         self.entity_id = f"sensor.{city_alias}_{sensor_type}"
         self._attr_translation_key = sensor_type
         self._attr_unique_id = f"xras_{city_alias}_{sensor_type}"
         self._attr_icon = sensor_info["icon"]
         self._attr_native_unit_of_measurement = sensor_info["unit"]
         
+        # Обновляем блок DeviceInfo
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, city_alias)},
-            name=f"Space Weather ({self.english_city_name})", 
-            manufacturer="IKI RAN",
-            model="Space Weather API",
+            name=f"Space Weather ({display_city})", 
+            manufacturer=manufacturer_name,
+            # ДОБАВЛЯЕМ ГОРОД В СТРОКУ СЛУЖБЫ:
+            model=f"Space Weather API ({display_city})", 
             entry_type="service",
         )
 
