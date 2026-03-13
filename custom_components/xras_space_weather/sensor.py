@@ -8,8 +8,6 @@ from .const import DOMAIN, CITIES
 
 _LOGGER = logging.getLogger(__name__)
 
-# Словарь сенсоров. Отсюда берутся иконки и единицы измерения.
-# Имена (name) здесь больше не используются для отображения, так как мы перешли на переводы (ru.json / en.json)
 SENSOR_TYPES = {
     "aurora_probability_local": {"name": "Aurora Probability Local", "unit": "%", "icon": "mdi:aurora"},
     "solar_flare_current_status": {"name": "Solar Flare Current Status", "unit": None, "icon": "mdi:white-balance-sunny"},
@@ -25,7 +23,7 @@ SENSOR_TYPES = {
 async def async_setup_entry(hass, entry, async_add_entities):
     """Настройка сенсоров."""
     coordinator = hass.data[DOMAIN][entry.entry_id]
-    city_alias = entry.data["city_id"] # Например, "moscow" или "abakan"
+    city_alias = entry.data["city_id"] 
     
     sensors = []
     for sensor_type, sensor_info in SENSOR_TYPES.items():
@@ -33,11 +31,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
         
     async_add_entities(sensors)
 
-
 class XrasSensor(CoordinatorEntity, SensorEntity):
     """Класс сенсора с уникальными ID для каждого города."""
 
-    # Говорим Home Assistant, что имя датчика динамическое и привязано к устройству
     _attr_has_entity_name = True 
 
     def __init__(self, coordinator, city_alias, sensor_type, sensor_info):
@@ -48,23 +44,18 @@ class XrasSensor(CoordinatorEntity, SensorEntity):
         
         city_info = CITIES[city_alias]
         self.city_name = city_info["name"]
+        self.english_city_name = city_alias.replace('_', ' ').title()
         
-        # Уникальный Entity ID остается прежним (например: sensor.moscow_kp_current)
         self.entity_id = f"sensor.{city_alias}_{sensor_type}"
-        
-        # Указываем ключ для поиска перевода в ru.json / en.json
         self._attr_translation_key = sensor_type
-        
-        # Unique ID для внутренних настроек HA (защита от конфликтов)
         self._attr_unique_id = f"xras_{city_alias}_{sensor_type}"
         self._attr_icon = sensor_info["icon"]
         self._attr_native_unit_of_measurement = sensor_info["unit"]
         
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, city_alias)},
-            # Имя устройства (оно будет подставляться перед именем сенсора)
-            name=f"Space Weather ({self.city_name})", 
-            manufacturer="ИКИ РАН",
+            name=f"Space Weather ({self.english_city_name})", 
+            manufacturer="IKI RAN",
             model="Space Weather API",
             entry_type="service",
         )
@@ -79,7 +70,11 @@ class XrasSensor(CoordinatorEntity, SensorEntity):
     @property
     def extra_state_attributes(self):
         """Дополнительные атрибуты (локация и время обновления)."""
-        attrs = {"location_name": self.city_name, "city_alias": self.city_alias}
+        attrs = {
+            "location_name": self.city_name, 
+            "location_name_en": self.english_city_name, 
+            "city_alias": self.city_alias
+        }
         if self.sensor_type == "aurora_index_latest" and self.coordinator.data:
             attrs["time"] = self.coordinator.data.get("aurora_time", "")
         return attrs
