@@ -16,5 +16,18 @@
     "abort": {
       "already_configured": "Устройство для этого города уже настроено"
     }
+  },
+  "entity": {
+    "sensor": {
+      "aurora_probability_local": { "name": "Вероятность полярного сияния" },
+      "solar_flare_current_status": { "name": "Статус солнечных вспышек" },
+      "solar_flare_last_info": { "name": "Последняя вспышка" },
+      "aurora_index_latest": { "name": "Индекс активности сияний" },
+      "solar_xray_latest": { "name": "Рентгеновское излучение" },
+      "kp_forecast_today": { "name": "Прогноз Kp на сегодня" },
+      "f10_forecast_today": { "name": "Прогноз F10.7 на сегодня" },
+      "kp_forecast_tomorrow": { "name": "Прогноз Kp на завтра" },
+      "kp_current": { "name": "Текущий Kp индекс" }
+    }
   }
 }
