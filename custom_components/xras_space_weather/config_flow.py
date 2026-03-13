@@ -11,7 +11,7 @@ _LOGGER = logging.getLogger(__name__)
 async def validate_input(hass, data):
     city_alias = data["city_id"]
     city_info = CITIES[city_alias]
-    city_internal_id = city_info["id"] # Получаем QYPM и т.д. для запроса
+    city_internal_id = city_info["id"] 
     
     test_url = f"{URL_JSON_BASE}/ai_{city_internal_id}.json"
     session = async_get_clientsession(hass)
@@ -26,7 +26,12 @@ async def validate_input(hass, data):
         _LOGGER.error("Ошибка подключения: %s", err)
         raise ValueError("cannot_connect")
 
-    return {"title": f"Космическая погода: {city_info['name']}"}
+    # Умное название интеграции в зависимости от языка
+    is_ru = hass.config.language.startswith('ru')
+    title_city = city_info['name'] if is_ru else city_alias.replace('_', ' ').title()
+    title = f"Космическая погода: {title_city}" if is_ru else f"Space Weather: {title_city}"
+    
+    return {"title": title}
 
 class XrasConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
@@ -42,11 +47,16 @@ class XrasConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except ValueError:
                 errors["base"] = "cannot_connect"
 
-        # Сортируем все 104 города по названию для удобства выбора
-        sorted_options = {
-            k: v["name"] 
-            for k, v in sorted(CITIES.items(), key=lambda item: item[1]["name"])
-        }
+        # Определяем язык для списка городов
+        is_ru = self.hass.config.language.startswith('ru')
+        
+        # Формируем список с учетом языка (русский или сгенерированный английский)
+        options = {}
+        for k, v in CITIES.items():
+            options[k] = v["name"] if is_ru else k.replace('_', ' ').title()
+
+        # Сортируем строго по алфавиту для удобства
+        sorted_options = dict(sorted(options.items(), key=lambda item: item[1]))
         
         return self.async_show_form(
             step_id="user", 
