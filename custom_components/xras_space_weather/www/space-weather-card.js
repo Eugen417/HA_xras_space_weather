@@ -63,6 +63,9 @@ class SpaceWeatherCard extends HTMLElement {
   connectedCallback() {
     if (this.videoEl) {
       this.videoEl.muted = true;
+      this.videoEl.defaultMuted = true;
+      this.videoEl.setAttribute('playsinline', '');
+      this.videoEl.setAttribute('webkit-playsinline', '');
       this.videoEl.play().catch(() => {});
     }
   }
@@ -70,7 +73,6 @@ class SpaceWeatherCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     
-    // Определяем язык пользователя (например, 'ru' или 'en'). По умолчанию берем английский.
     const langCode = (hass.language || 'en').substring(0, 2);
     this.t = TRANSLATIONS[langCode] || TRANSLATIONS['en'];
     
@@ -161,6 +163,8 @@ class SpaceWeatherCard extends HTMLElement {
   render() {
     if (!this._hass || !this._isInitialized) return;
 
+    const langCode = (this._hass.language || 'en').substring(0, 2);
+
     const getEntityData = (suffix) => {
       const eid = this._getEntity(suffix);
       if (eid && this._hass.states[eid]) {
@@ -186,10 +190,14 @@ class SpaceWeatherCard extends HTMLElement {
     const flaresStatus = getEntityData('solar_flare_current_status');
     const flaresLast = getEntityData('solar_flare_last_info');
 
-    const cityName = aurora.attributes.location_name || aurora.attributes.city || this.config.city || this.t.loc_default;
+    let cityName = aurora.attributes.location_name || this.config.city || this.t.loc_default;
+    if (langCode === 'en' && aurora.attributes.location_name_en) {
+        cityName = aurora.attributes.location_name_en;
+    }
+
     const kpNum = parseFloat(kp.state);
     
-    let videoUrl = this._currentVideoUrl || '/api/xras_sw_static/normal.mp4'; 
+    let videoUrl = '/api/xras_sw_static/normal.mp4'; 
     let statusName = this.statusNameEl.innerHTML !== '--' ? this.statusNameEl.innerHTML : this.t.norm_status;
     
     if (!isNaN(kpNum)) {
@@ -209,10 +217,28 @@ class SpaceWeatherCard extends HTMLElement {
     };
 
     if (this._currentVideoUrl !== videoUrl) {
-      this.videoEl.src = videoUrl;
-      this._currentVideoUrl = videoUrl;
+      this._currentVideoUrl = videoUrl; 
+      
+      const cacheBustUrl = videoUrl + "?v=" + Date.now();
+      this.videoEl.src = cacheBustUrl;
+      
       this.videoEl.muted = true;
-      this.videoEl.play().catch(() => {});
+      this.videoEl.defaultMuted = true; 
+      
+      this.videoEl.setAttribute('playsinline', '');
+      this.videoEl.setAttribute('webkit-playsinline', '');
+      this.videoEl.setAttribute('autoplay', '');
+      
+      this.videoEl.load(); 
+      
+      const playPromise = this.videoEl.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          setTimeout(() => {
+            this.videoEl.play().catch(() => {});
+          }, 500);
+        });
+      }
     }
     
     if (this.videoEl.paused) {
@@ -241,7 +267,6 @@ customElements.define('space-weather-card', SpaceWeatherCard);
 
 window.customCards = window.customCards || [];
 if (!window.customCards.some(c => c.type === 'space-weather-card')) {
-  // Название и описание для визуального редактора берем из языка браузера
   const lang = (navigator.language || 'en').substring(0, 2);
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
   
