@@ -13,8 +13,6 @@ from .const import (
     DOMAIN, 
     USER_AGENT, 
     URL_JSON_BASE, 
-    URL_HTML_AURORA, 
-    URL_HTML_FLARES, 
     UPDATE_INTERVAL_MINUTES,
     CITIES
 )
@@ -25,7 +23,6 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
     """Класс для управления скачиванием и парсингом данных."""
 
     def __init__(self, hass, city_alias):
-        """Инициализация координатора."""
         super().__init__(
             hass,
             _LOGGER,
@@ -33,13 +30,11 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(minutes=UPDATE_INTERVAL_MINUTES),
         )
         self.city_alias = city_alias
-        # Вытаскиваем внутренний ID (например "QYPM") для API ИКИ РАН
         self.city_internal_id = CITIES[city_alias]["id"] 
         self.city_name = CITIES[city_alias]["name"]
         self.session = async_get_clientsession(hass)
 
     async def _fetch(self, url, is_json=True):
-        """Вспомогательная функция для скачивания данных."""
         headers = {"User-Agent": USER_AGENT}
         try:
             async with self.session.get(url, headers=headers, timeout=15) as response:
@@ -51,46 +46,55 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(f"Ошибка при запросе к {url}: {err}") from err
 
     async def _async_update_data(self):
-        """Главная функция: скачивает всё и парсит данные."""
         try:
-            # 1. Формируем ссылки с правильным внутренним ID города
+            lang = self.hass.config.language
+            is_ru = lang.startswith('ru')
+
             url_ai = f"{URL_JSON_BASE}/ai_{self.city_internal_id}.json"
             url_xray = f"{URL_JSON_BASE}/xray_{self.city_internal_id}.json"
             url_kp_fact = f"{URL_JSON_BASE}/kp_{self.city_internal_id}.json"
             url_kp_forecast = f"{URL_JSON_BASE}/kpf_{self.city_internal_id}.json"
-            url_aurora_html = f"{URL_HTML_AURORA}/{self.city_alias}/"
 
-            # 2. Скачиваем всё параллельно
+            if is_ru:
+                url_aurora_html = f"https://xras.ru/aurora.html/{self.city_alias}/"
+                url_flares_html = "https://xras.ru/sun_flares.html"
+            else:
+                # Используем стандартный путь (он надежнее)
+                url_aurora_html = f"https://xras.ru/en/aurora.html/{self.city_alias}/"
+                url_flares_html = "https://xras.ru/en/sun_flares.html"
+
             results = await asyncio.gather(
                 self._fetch(url_ai, is_json=True),
                 self._fetch(url_xray, is_json=True),
                 self._fetch(url_kp_fact, is_json=True),
                 self._fetch(url_kp_forecast, is_json=True),
                 self._fetch(url_aurora_html, is_json=False),
-                self._fetch(URL_HTML_FLARES, is_json=False),
+                self._fetch(url_flares_html, is_json=False),
                 return_exceptions=True
             )
 
-            for res in results:
+            # === БРОНЕБОЙНАЯ ЗАЩИТА ОТ ОШИБОК ===
+            # Если какая-то ссылка выдаст 404, мы просто пишем предупреждение и работаем дальше!
+            for i, res in enumerate(results):
                 if isinstance(res, Exception):
-                    raise UpdateFailed(f"Ошибка параллельного запроса: {res}")
+                    _LOGGER.warning(f"Источник {i} временно недоступен: {res}")
 
-            ai_data, xray_data, kp_fact_data, kp_forecast_data, aurora_html, flares_html = results
+            ai_data = results[0] if not isinstance(results[0], Exception) else None
+            xray_data = results[1] if not isinstance(results[1], Exception) else None
+            kp_fact_data = results[2] if not isinstance(results[2], Exception) else None
+            kp_forecast_data = results[3] if not isinstance(results[3], Exception) else None
+            aurora_html = results[4] if not isinstance(results[4], Exception) else ""
+            flares_html = results[5] if not isinstance(results[5], Exception) else ""
 
-            # 3. Парсим данные в словарь. 
-            # ВАЖНО: Ключи здесь строго совпадают с ключами SENSOR_TYPES в sensor.py
             parsed_data = {}
 
-            # --- Индекс сияний (AI) ---
             if ai_data and "data" in ai_data and len(ai_data["data"]) > 0:
                 parsed_data["aurora_index_latest"] = ai_data["data"][0].get("ai", "unknown")
                 parsed_data["aurora_time"] = ai_data["data"][0].get("time", "")
 
-            # --- Рентгеновское излучение (X-Ray) ---
             if xray_data and "data" in xray_data and len(xray_data["data"]) > 0:
                 parsed_data["solar_xray_latest"] = xray_data["data"][0].get("long", "unknown")
 
-            # --- ФАКТИЧЕСКИЕ ДАННЫЕ И ТЕКУЩИЙ KP ---
             if kp_fact_data and "data" in kp_fact_data and len(kp_fact_data["data"]) >= 2:
                 today_fact = kp_fact_data["data"][0]
                 yesterday_fact = kp_fact_data["data"][1]
@@ -113,7 +117,6 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
                 
                 parsed_data["kp_current"] = latest_kp
 
-            # --- ПРОГНОЗ НА ЗАВТРА ---
             if kp_forecast_data and "data" in kp_forecast_data:
                 msk_tz = timezone(timedelta(hours=3))
                 tomorrow_msk = datetime.now(msk_tz) + timedelta(days=1)
@@ -125,18 +128,20 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
                         parsed_data["kp_forecast_tomorrow"] = day.get("max_kp", "unknown")
                         break
 
-            # --- ПАРСИНГ HTML: Вероятность сияний ---
             parsed_data["aurora_probability_local"] = "unknown"
             soup_aurora = BeautifulSoup(aurora_html, 'html.parser')
+            city_search_en = self.city_alias.replace('_', ' ').lower()
+            
             for loc in soup_aurora.select('.aurora_location'):
                 name_span = loc.select_one('.aurora_location_name')
-                if name_span and self.city_name in name_span.text:
-                    val_span = loc.select_one('.aurora_location_value')
-                    if val_span:
-                        parsed_data["aurora_probability_local"] = val_span.text.replace(' %', '').strip()
-                        break
+                if name_span:
+                    html_city = name_span.text.lower()
+                    if self.city_name.lower() in html_city or city_search_en in html_city:
+                        val_span = loc.select_one('.aurora_location_value')
+                        if val_span:
+                            parsed_data["aurora_probability_local"] = val_span.text.replace(' %', '').strip()
+                            break
 
-            # --- ПАРСИНГ HTML: Вспышки на солнце ---
             parsed_data["solar_flare_current_status"] = "unknown"
             parsed_data["solar_flare_last_info"] = "unknown"
             soup_flares = BeautifulSoup(flares_html, 'html.parser')
@@ -144,27 +149,25 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
             
             if len(flare_nodes) >= 2:
                 parsed_data["solar_flare_current_status"] = flare_nodes[0].text.strip()
-                
-                # Берем исходный текст (например: "...в 05:14 МСК")
                 flare_text = flare_nodes[1].text.strip()
                 
-                # Ищем время в формате ЧЧ:ММ
                 match = re.search(r'\b(\d{1,2}):(\d{2})\b', flare_text)
                 if match:
                     hours, minutes = int(match.group(1)), int(match.group(2))
                     
-                    # 1. Создаем объект времени в московском поясе (UTC+3)
-                    msk_tz = timezone(timedelta(hours=3))
+                    if is_ru:
+                        source_tz = timezone(timedelta(hours=3))
+                    else:
+                        source_tz = timezone.utc
+                        
                     now = dt_util.utcnow()
-                    time_msk = datetime(now.year, now.month, now.day, hours, minutes, tzinfo=msk_tz)
+                    time_source = datetime(now.year, now.month, now.day, hours, minutes, tzinfo=source_tz)
+                    time_local = dt_util.as_local(time_source)
                     
-                    # 2. Конвертируем в часовой пояс вашего сервера Home Assistant
-                    time_local = dt_util.as_local(time_msk)
-                    
-                    # 3. Формируем новую строку и заменяем данные в тексте
                     local_time_str = time_local.strftime('%H:%M')
                     flare_text = flare_text.replace(match.group(0), local_time_str)
-                    flare_text = flare_text.replace('МСК', 'Местн.')
+                    
+                    flare_text = flare_text.replace('МСК', 'Местн.').replace('MSK', 'Local').replace('UTC', 'Local')
                     
                 parsed_data["solar_flare_last_info"] = flare_text
 
