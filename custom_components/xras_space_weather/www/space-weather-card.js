@@ -60,13 +60,9 @@ class SpaceWeatherCard extends HTMLElement {
     this.config = config || {};
   }
 
-  // Вызывается браузером, когда карточка реально появляется на экране
   connectedCallback() {
     if (this.videoEl) {
       this.videoEl.muted = true;
-      this.videoEl.defaultMuted = true; // <-- Добавлено для Android
-      this.videoEl.setAttribute('playsinline', '');
-      this.videoEl.setAttribute('webkit-playsinline', '');
       this.videoEl.play().catch(() => {});
     }
   }
@@ -193,8 +189,7 @@ class SpaceWeatherCard extends HTMLElement {
     const cityName = aurora.attributes.location_name || aurora.attributes.city || this.config.city || this.t.loc_default;
     const kpNum = parseFloat(kp.state);
     
-    // БЕЗОПАСНЫЙ ПУТЬ ДЛЯ ЗАГРУЗКИ СТАТИКИ В HOME ASSISTANT
-    let videoUrl = '/api/xras_sw_static/normal.mp4'; 
+    let videoUrl = this._currentVideoUrl || '/api/xras_sw_static/normal.mp4'; 
     let statusName = this.statusNameEl.innerHTML !== '--' ? this.statusNameEl.innerHTML : this.t.norm_status;
     
     if (!isNaN(kpNum)) {
@@ -213,35 +208,13 @@ class SpaceWeatherCard extends HTMLElement {
       return `(${this.t.desc_storm}${Math.floor(n - 4)})`;
     };
 
-    // БРОНЕБОЙНОЕ ОБНОВЛЕНИЕ ВИДЕО (ДЛЯ ANDROID И SAFARI)
     if (this._currentVideoUrl !== videoUrl) {
-      this._currentVideoUrl = videoUrl; // Запоминаем чистый URL, чтобы не было зацикливания
-      
-      // Добавляем уникальную метку времени, чтобы пробить кэш Android Companion App
-      const cacheBustUrl = videoUrl + "?v=" + Date.now();
-      this.videoEl.src = cacheBustUrl;
-      
-      // Двойное глушение (критично для Android WebView)
+      this.videoEl.src = videoUrl;
+      this._currentVideoUrl = videoUrl;
       this.videoEl.muted = true;
-      this.videoEl.defaultMuted = true; 
-      
-      this.videoEl.setAttribute('playsinline', '');
-      this.videoEl.setAttribute('webkit-playsinline', '');
-      this.videoEl.setAttribute('autoplay', '');
-      
-      this.videoEl.load(); // Жесткая перезагрузка плеера
-      
-      const playPromise = this.videoEl.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(() => {
-          setTimeout(() => {
-            this.videoEl.play().catch(() => {});
-          }, 500);
-        });
-      }
+      this.videoEl.play().catch(() => {});
     }
     
-    // Если видео встало на паузу при сворачивании приложения
     if (this.videoEl.paused) {
         this.videoEl.play().catch(() => {});
     }
