@@ -22,10 +22,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     www_dir = os.path.join(integration_dir, "www")
     
     if os.path.exists(www_dir):
+        # ИСПОЛЬЗУЕМ БЕЗОПАСНЫЙ URL ЧЕРЕЗ /api/
+        url_base = "/api/xras_sw_static"
+        
         # 1. Регистрация статического пути
         await hass.http.async_register_static_paths([
             StaticPathConfig(
-                url_path="/xras_sw_static",
+                url_path=url_base,
                 path=www_dir,
                 cache_headers=False,
             )
@@ -33,7 +36,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         
         # 2. Формируем URL
         cache_buster = str(time.time()).replace(".", "")
-        js_url = f"/xras_sw_static/space-weather-card.js?v={cache_buster}"
+        js_url = f"{url_base}/space-weather-card.js?v={cache_buster}"
         
         # 3. Безопасная регистрация в Lovelace
         hass.async_create_task(async_register_resource(hass, js_url))
@@ -72,14 +75,14 @@ async def async_register_resource(hass: HomeAssistant, url: str):
         if not resources.loaded:
             await resources.async_load()
 
-        # Ищем, есть ли уже наша карточка
+        # Ищем, есть ли уже наша карточка (по имени файла, чтобы найти и старые пути)
         existing_id = None
         for res in resources.async_items():
-            if res.get("url", "").startswith("/xras_sw_static/space-weather-card.js"):
+            if "space-weather-card.js" in res.get("url", ""):
                 existing_id = res["id"]
                 break
 
-        # Если карточка уже есть, обновляем ей URL (чтобы применился новый кэш)
+        # Если карточка уже есть, обновляем ей URL (чтобы применился новый путь и кэш)
         if existing_id:
             await resources.async_update_item(existing_id, {
                 "res_type": "module",
