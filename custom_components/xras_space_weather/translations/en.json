@@ -1,0 +1,33 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Space Weather Setup",
+        "description": "Select your city to get local data on magnetic storms and auroras.",
+        "data": {
+          "city_id": "City"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the IKI RAN server",
+      "unknown": "Unknown error"
+    },
+    "abort": {
+      "already_configured": "Device is already configured for this city"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "aurora_probability_local": { "name": "Local Aurora Probability" },
+      "solar_flare_current_status": { "name": "Solar Flare Status" },
+      "solar_flare_last_info": { "name": "Last Solar Flare" },
+      "aurora_index_latest": { "name": "Aurora Index" },
+      "solar_xray_latest": { "name": "Solar X-Ray" },
+      "kp_forecast_today": { "name": "Kp Forecast Today" },
+      "f10_forecast_today": { "name": "F10.7 Forecast Today" },
+      "kp_forecast_tomorrow": { "name": "Kp Forecast Tomorrow" },
+      "kp_current": { "name": "Current Kp Index" }
+    }
+  }
+}
