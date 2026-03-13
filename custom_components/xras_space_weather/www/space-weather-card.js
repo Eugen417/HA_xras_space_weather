@@ -1,3 +1,54 @@
+const TRANSLATIONS = {
+  en: {
+    aurora_title: "🌌 Auroras",
+    ai_label: "Activity Index:",
+    prob_label: "Probability at location:",
+    storms_title: "🧲 Magnetic Storms",
+    max_today: "Maximum today:",
+    tmrw: "Expected tomorrow:",
+    solar_title: "☀️ Solar Activity",
+    f10_label: "Radiation Index (F10.7):",
+    status_label: "Status:",
+    flare_label: "Last flare:",
+    loc_default: "Location",
+    norm_status: "Normal (No storms)",
+    g1_status: "G1 (Minor storm)",
+    g2_status: "G2 (Moderate storm)",
+    g3_status: "G3 (Strong storm)",
+    g4_status: "G4 (Severe storm)",
+    g5_status: "G5 (Extreme storm)",
+    at_time: "at",
+    desc_norm: "(Normal)",
+    desc_storm: "Storm G",
+    card_name: "Space Weather",
+    card_desc: "Animations of threat levels and full summary from IKI RAN"
+  },
+  ru: {
+    aurora_title: "🌌 Полярные сияния",
+    ai_label: "Индекс активности:",
+    prob_label: "Вероятность в локации:",
+    storms_title: "🧲 Магнитные бури",
+    max_today: "Максимум за сегодня:",
+    tmrw: "Ожидается завтра:",
+    solar_title: "☀️ Солнечная активность",
+    f10_label: "Индекс излучения (F10.7):",
+    status_label: "Статус:",
+    flare_label: "Последняя вспышка:",
+    loc_default: "Локация",
+    norm_status: "Норма (Без бурь)",
+    g1_status: "G1 (Слабая буря)",
+    g2_status: "G2 (Умеренная буря)",
+    g3_status: "G3 (Сильная буря)",
+    g4_status: "G4 (Очень сильно)",
+    g5_status: "G5 (Экстремально)",
+    at_time: "на",
+    desc_norm: "(Норма)",
+    desc_storm: "Буря G",
+    card_name: "Космическая погода",
+    card_desc: "Анимации уровней угрозы и полная текстовая сводка ИКИ РАН"
+  }
+};
+
 class SpaceWeatherCard extends HTMLElement {
   constructor() {
     super();
@@ -12,14 +63,20 @@ class SpaceWeatherCard extends HTMLElement {
   // Вызывается браузером, когда карточка реально появляется на экране
   connectedCallback() {
     if (this.videoEl) {
-      // Принудительный старт видео при открытии дашборда (Лечит зависание в Chrome/App)
       this.videoEl.muted = true;
+      this.videoEl.defaultMuted = true; // <-- Добавлено для Android
+      this.videoEl.setAttribute('playsinline', '');
+      this.videoEl.setAttribute('webkit-playsinline', '');
       this.videoEl.play().catch(() => {});
     }
   }
 
   set hass(hass) {
     this._hass = hass;
+    
+    // Определяем язык пользователя (например, 'ru' или 'en'). По умолчанию берем английский.
+    const langCode = (hass.language || 'en').substring(0, 2);
+    this.t = TRANSLATIONS[langCode] || TRANSLATIONS['en'];
     
     if (!this._isInitialized) {
       this.card = document.createElement('ha-card');
@@ -56,20 +113,20 @@ class SpaceWeatherCard extends HTMLElement {
         </div>
         <div class="content-body">
           <div class="section">
-            <div class="section-title">🌌 Полярные сияния</div>
-            <div class="row-inline"><span class="label">Индекс активности:</span><span class="value" id="ai-val">--</span></div>
-            <div class="row-inline"><span class="label">Вероятность в локации:</span><span class="value" id="aurora-val">--</span></div>
+            <div class="section-title">${this.t.aurora_title}</div>
+            <div class="row-inline"><span class="label">${this.t.ai_label}</span><span class="value" id="ai-val">--</span></div>
+            <div class="row-inline"><span class="label">${this.t.prob_label}</span><span class="value" id="aurora-val">--</span></div>
           </div>
           <div class="section">
-            <div class="section-title">🧲 Магнитные бури</div>
-            <div class="row-inline"><span class="label">Максимум за сегодня:</span><span class="value" id="kp-today-val">--</span></div>
-            <div class="row-inline"><span class="label">Ожидается завтра:</span><span class="value" id="kp-tmrw-val">--</span></div>
+            <div class="section-title">${this.t.storms_title}</div>
+            <div class="row-inline"><span class="label">${this.t.max_today}</span><span class="value" id="kp-today-val">--</span></div>
+            <div class="row-inline"><span class="label">${this.t.tmrw}</span><span class="value" id="kp-tmrw-val">--</span></div>
           </div>
           <div class="section">
-            <div class="section-title">☀️ Солнечная активность</div>
-            <div class="row-inline"><span class="label">Индекс излучения (F10.7):</span><span class="value" id="f10-val">--</span></div>
-            <div class="row-block"><span class="label">Статус:</span><span class="value" style="font-weight: normal;" id="flare-status-val">--</span></div>
-            <div class="row-block"><span class="label">Последняя вспышка:</span><span class="value" style="font-weight: normal;" id="flare-last-val">--</span></div>
+            <div class="section-title">${this.t.solar_title}</div>
+            <div class="row-inline"><span class="label">${this.t.f10_label}</span><span class="value" id="f10-val">--</span></div>
+            <div class="row-block"><span class="label">${this.t.status_label}</span><span class="value" style="font-weight: normal;" id="flare-status-val">--</span></div>
+            <div class="row-block"><span class="label">${this.t.flare_label}</span><span class="value" style="font-weight: normal;" id="flare-last-val">--</span></div>
           </div>
         </div>
       `;
@@ -116,7 +173,7 @@ class SpaceWeatherCard extends HTMLElement {
         if (stateObj.last_updated) {
           try {
             const d = new Date(stateObj.last_updated.replace(' ', 'T'));
-            if (!isNaN(d.getTime())) timeStr = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+            if (!isNaN(d.getTime())) timeStr = d.toLocaleTimeString(this._hass.language || 'ru-RU', { hour: '2-digit', minute: '2-digit' });
           } catch(e) {}
         }
         return { state: String(stateObj.state), time: timeStr, attributes: stateObj.attributes || {} };
@@ -133,39 +190,58 @@ class SpaceWeatherCard extends HTMLElement {
     const flaresStatus = getEntityData('solar_flare_current_status');
     const flaresLast = getEntityData('solar_flare_last_info');
 
-    const cityName = aurora.attributes.location_name || aurora.attributes.city || this.config.city || 'Локация';
+    const cityName = aurora.attributes.location_name || aurora.attributes.city || this.config.city || this.t.loc_default;
     const kpNum = parseFloat(kp.state);
     
-    let videoUrl = this._currentVideoUrl || '/xras_sw_static/normal.mp4'; 
-    let statusName = this.statusNameEl.innerHTML !== '--' ? this.statusNameEl.innerHTML : 'Норма (Без бурь)';
+    // БЕЗОПАСНЫЙ ПУТЬ ДЛЯ ЗАГРУЗКИ СТАТИКИ В HOME ASSISTANT
+    let videoUrl = '/api/xras_sw_static/normal.mp4'; 
+    let statusName = this.statusNameEl.innerHTML !== '--' ? this.statusNameEl.innerHTML : this.t.norm_status;
     
-    // ЗАЩИТА ОТ "МОРГАНИЯ" СЕНСОРОВ
-    // Обновляем ссылку на видео ТОЛЬКО если пришло реальное число
     if (!isNaN(kpNum)) {
-      if (kpNum >= 9) { videoUrl = '/xras_sw_static/g5.mp4'; statusName = 'G5 (Экстремально)'; }
-      else if (kpNum >= 8) { videoUrl = '/xras_sw_static/g4.mp4'; statusName = 'G4 (Очень сильно)'; }
-      else if (kpNum >= 7) { videoUrl = '/xras_sw_static/g3.mp4'; statusName = 'G3 (Сильная буря)'; }
-      else if (kpNum >= 6) { videoUrl = '/xras_sw_static/g2.mp4'; statusName = 'G2 (Умеренная буря)'; }
-      else if (kpNum >= 5) { videoUrl = '/xras_sw_static/g1.mp4'; statusName = 'G1 (Слабая буря)'; }
-      else { videoUrl = '/xras_sw_static/normal.mp4'; statusName = 'Норма (Без бурь)'; }
+      if (kpNum >= 9) { videoUrl = '/api/xras_sw_static/g5.mp4'; statusName = this.t.g5_status; }
+      else if (kpNum >= 8) { videoUrl = '/api/xras_sw_static/g4.mp4'; statusName = this.t.g4_status; }
+      else if (kpNum >= 7) { videoUrl = '/api/xras_sw_static/g3.mp4'; statusName = this.t.g3_status; }
+      else if (kpNum >= 6) { videoUrl = '/api/xras_sw_static/g2.mp4'; statusName = this.t.g2_status; }
+      else if (kpNum >= 5) { videoUrl = '/api/xras_sw_static/g1.mp4'; statusName = this.t.g1_status; }
+      else { videoUrl = '/api/xras_sw_static/normal.mp4'; statusName = this.t.norm_status; }
     }
 
     const getKpDesc = (val) => {
       const n = parseFloat(val);
       if (isNaN(n)) return '';
-      if (n < 5) return '(Норма)';
-      return `(Буря G${Math.floor(n - 4)})`;
+      if (n < 5) return this.t.desc_norm;
+      return `(${this.t.desc_storm}${Math.floor(n - 4)})`;
     };
 
-    // ОБНОВЛЕНИЕ ВИДЕО (Только если реально сменился уровень бури)
+    // БРОНЕБОЙНОЕ ОБНОВЛЕНИЕ ВИДЕО (ДЛЯ ANDROID И SAFARI)
     if (this._currentVideoUrl !== videoUrl) {
-      this.videoEl.src = videoUrl;
-      this._currentVideoUrl = videoUrl;
+      this._currentVideoUrl = videoUrl; // Запоминаем чистый URL, чтобы не было зацикливания
+      
+      // Добавляем уникальную метку времени, чтобы пробить кэш Android Companion App
+      const cacheBustUrl = videoUrl + "?v=" + Date.now();
+      this.videoEl.src = cacheBustUrl;
+      
+      // Двойное глушение (критично для Android WebView)
       this.videoEl.muted = true;
-      this.videoEl.play().catch(() => {});
+      this.videoEl.defaultMuted = true; 
+      
+      this.videoEl.setAttribute('playsinline', '');
+      this.videoEl.setAttribute('webkit-playsinline', '');
+      this.videoEl.setAttribute('autoplay', '');
+      
+      this.videoEl.load(); // Жесткая перезагрузка плеера
+      
+      const playPromise = this.videoEl.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          setTimeout(() => {
+            this.videoEl.play().catch(() => {});
+          }, 500);
+        });
+      }
     }
     
-    // Если видео почему-то встало на паузу (политика браузера), пинаем его снова
+    // Если видео встало на паузу при сворачивании приложения
     if (this.videoEl.paused) {
         this.videoEl.play().catch(() => {});
     }
@@ -174,7 +250,7 @@ class SpaceWeatherCard extends HTMLElement {
     this.kpValEl.innerHTML = kp.state;
     this.statusNameEl.innerHTML = statusName;
     
-    this.aiValEl.innerHTML = `${ai.state} AI <span class="desc">(на ${ai.time})</span>`;
+    this.aiValEl.innerHTML = `${ai.state} AI <span class="desc">(${this.t.at_time} ${ai.time})</span>`;
     this.auroraValEl.innerHTML = `${aurora.state}%`;
     
     this.kpTodayValEl.innerHTML = `${kpToday.state} Kp <span class="desc">${getKpDesc(kpToday.state)}</span>`;
@@ -192,10 +268,14 @@ customElements.define('space-weather-card', SpaceWeatherCard);
 
 window.customCards = window.customCards || [];
 if (!window.customCards.some(c => c.type === 'space-weather-card')) {
+  // Название и описание для визуального редактора берем из языка браузера
+  const lang = (navigator.language || 'en').substring(0, 2);
+  const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
+  
   window.customCards.push({
     type: "space-weather-card",
-    name: "Space Weather",
-    description: "Анимации уровней угрозы и полная текстовая сводка ИКИ РАН",
+    name: t.card_name,
+    description: t.card_desc,
     preview: true
   });
 }
