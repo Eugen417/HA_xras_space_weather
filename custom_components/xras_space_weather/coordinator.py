@@ -1,11 +1,13 @@
 """Координатор данных для интеграции ИКИ РАН: Космическая погода."""
 import logging
 import asyncio
+import re
 from datetime import datetime, timedelta, timezone
 from bs4 import BeautifulSoup
 
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.util import dt as dt_util
 
 from .const import (
     DOMAIN, 
@@ -139,9 +141,32 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
             parsed_data["solar_flare_last_info"] = "unknown"
             soup_flares = BeautifulSoup(flares_html, 'html.parser')
             flare_nodes = soup_flares.select('.graph_lastdata_text')
+            
             if len(flare_nodes) >= 2:
                 parsed_data["solar_flare_current_status"] = flare_nodes[0].text.strip()
-                parsed_data["solar_flare_last_info"] = flare_nodes[1].text.strip()
+                
+                # Берем исходный текст (например: "...в 05:14 МСК")
+                flare_text = flare_nodes[1].text.strip()
+                
+                # Ищем время в формате ЧЧ:ММ
+                match = re.search(r'\b(\d{1,2}):(\d{2})\b', flare_text)
+                if match:
+                    hours, minutes = int(match.group(1)), int(match.group(2))
+                    
+                    # 1. Создаем объект времени в московском поясе (UTC+3)
+                    msk_tz = timezone(timedelta(hours=3))
+                    now = dt_util.utcnow()
+                    time_msk = datetime(now.year, now.month, now.day, hours, minutes, tzinfo=msk_tz)
+                    
+                    # 2. Конвертируем в часовой пояс вашего сервера Home Assistant
+                    time_local = dt_util.as_local(time_msk)
+                    
+                    # 3. Формируем новую строку и заменяем данные в тексте
+                    local_time_str = time_local.strftime('%H:%M')
+                    flare_text = flare_text.replace(match.group(0), local_time_str)
+                    flare_text = flare_text.replace('МСК', 'Местн.')
+                    
+                parsed_data["solar_flare_last_info"] = flare_text
 
             return parsed_data
 
