@@ -1,6 +1,15 @@
 # 🌌 Space Weather IKI RAN (HACS)
 
 Интеграция для Home Assistant, предоставляющая детальные данные о космической погоде напрямую от **Института космических исследований РАН**. Включает уникальную анимированную карточку, которая меняет свой фон в реальном времени в зависимости от уровня магнитных бурь.
+___
+
+<p align="center">
+  <img alt="Снимок экрана мобильного" src="https://github.com/user-attachments/assets/e521b0a0-273d-4eed-be8b-80556231bd3d" height="300" />
+  &nbsp;&nbsp;&nbsp;
+  <img alt="Снимок экрана десктопа" src="https://github.com/user-attachments/assets/9c8d3400-bd5c-4a6a-8e8b-b1ad90fc5e32" height="300" />
+</p>
+
+___
 
 ## ✨ Особенности
 
@@ -37,15 +46,6 @@ type: custom:space-weather-card
 
 
 ```
-___
-
-<p align="center">
-  <img alt="Снимок экрана мобильного" src="https://github.com/user-attachments/assets/e521b0a0-273d-4eed-be8b-80556231bd3d" height="300" />
-  &nbsp;&nbsp;&nbsp;
-  <img alt="Снимок экрана десктопа" src="https://github.com/user-attachments/assets/9c8d3400-bd5c-4a6a-8e8b-b1ad90fc5e32" height="300" />
-</p>
-
-___
 
 *Карточка автоматически найдет все сенсоры и подставит актуальное видео в шапку.*
 
