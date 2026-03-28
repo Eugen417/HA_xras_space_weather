@@ -70,6 +70,6 @@ type: custom:space-weather-card
 
 ---
 
-**Источник данных:** [ИКИ РАН](https://iki.rssi.ru/)
+**Источник данных:** [ИКИ РАН](https://xras.ru)
 
 **Разработчик:** [Eugen417](https://www.google.com/search?q=https://github.com/Eugen417)
