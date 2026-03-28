@@ -37,8 +37,15 @@ type: custom:space-weather-card
 
 
 ```
+___
 
-<img width="346" height="428" alt="Снимок экрана 2026-02-26 в 09 51 55" src="https://github.com/user-attachments/assets/1b6e8d26-5f17-4975-8827-281b75519605" />
+<p align="center">
+  <img alt="Снимок экрана мобильного" src="https://github.com/user-attachments/assets/e521b0a0-273d-4eed-be8b-80556231bd3d" height="300" />
+  &nbsp;&nbsp;&nbsp;
+  <img alt="Снимок экрана десктопа" src="https://github.com/user-attachments/assets/9c8d3400-bd5c-4a6a-8e8b-b1ad90fc5e32" height="300" />
+</p>
+
+___
 
 *Карточка автоматически найдет все сенсоры и подставит актуальное видео в шапку.*
 
