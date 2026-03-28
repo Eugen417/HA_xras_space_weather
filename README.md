@@ -77,6 +77,6 @@ ___
 
 ---
 
-**Источник данных:** [ИКИ РАН](https://xras.ru)
+**Источник данных:** [ИКИ РАН и ИСЗФ СО РАН](https://xras.ru)
 
 **Разработчик:** [Eugen417](https://www.google.com/search?q=https://github.com/Eugen417)
