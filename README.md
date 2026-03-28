@@ -66,7 +66,7 @@ type: custom:space-weather-card
 
 ## 🧰 Дополнительно: Генератор конфигурации
 
-Предпочитаете ручную настройку через YAML или хотите расширить возможности умного дома? Воспользуйтесь нашим **[Web-генератором конфигурации](https://github.com/Eugen417/home-assitant-dashboard/tree/main/Space_Weather_Config_Generator_for_Home_Assistant)**.
+Предпочитаете ручную настройку через YAML или хотите расширить возможности умного дома? Воспользуйтесь **[Web-генератором конфигурации](https://github.com/Eugen417/home-assitant-dashboard/tree/main/Space_Weather_Config_Generator_for_Home_Assistant)**.
 
 **Что умеет генератор (в 1 клик для 100+ городов):**
 
