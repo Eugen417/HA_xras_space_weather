@@ -197,7 +197,9 @@ class SpaceWeatherCard extends HTMLElement {
 
     const kpNum = parseFloat(kp.state);
     
-    let videoUrl = '/api/xras_sw_static/normal.mp4'; 
+    // ВНИМАНИЕ: Используем путь /api/xras_sw_static/ (так как он зарегистрирован в __init__.py)
+    // Сохранена идеальная логика от версии 0.0.8
+    let videoUrl = this._currentVideoUrl || '/api/xras_sw_static/normal.mp4'; 
     let statusName = this.statusNameEl.innerHTML !== '--' ? this.statusNameEl.innerHTML : this.t.norm_status;
     
     if (!isNaN(kpNum)) {
@@ -216,29 +218,15 @@ class SpaceWeatherCard extends HTMLElement {
       return `(${this.t.desc_storm}${Math.floor(n - 4)})`;
     };
 
+    // Убрали ломающий кэш ?v=Date.now() и вернули логику из 0.0.8
     if (this._currentVideoUrl !== videoUrl) {
+      this.videoEl.src = videoUrl; 
       this._currentVideoUrl = videoUrl; 
-      
-      const cacheBustUrl = videoUrl + "?v=" + Date.now();
-      this.videoEl.src = cacheBustUrl;
-      
       this.videoEl.muted = true;
-      this.videoEl.defaultMuted = true; 
-      
+      this.videoEl.defaultMuted = true;
       this.videoEl.setAttribute('playsinline', '');
       this.videoEl.setAttribute('webkit-playsinline', '');
-      this.videoEl.setAttribute('autoplay', '');
-      
-      this.videoEl.load(); 
-      
-      const playPromise = this.videoEl.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(() => {
-          setTimeout(() => {
-            this.videoEl.play().catch(() => {});
-          }, 500);
-        });
-      }
+      this.videoEl.play().catch(() => {});
     }
     
     if (this.videoEl.paused) {
