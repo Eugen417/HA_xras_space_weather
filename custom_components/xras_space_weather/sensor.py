@@ -71,8 +71,16 @@ class XrasSensor(CoordinatorEntity, SensorEntity):
     def native_value(self):
         """Получение значения сенсора из координатора."""
         if not self.coordinator.data:
-            return "unknown"
-        return self.coordinator.data.get(self.sensor_type, "unknown")
+            return None
+            
+        val = self.coordinator.data.get(self.sensor_type)
+        
+        # Защита: если ИКИ РАН прислал текстовый "null", "unknown" или пустоту,
+        # мы отдаем None, чтобы Home Assistant корректно понял, что данных нет.
+        if val in ("null", "unknown", "", None):
+            return None
+            
+        return val
 
     @property
     def extra_state_attributes(self):
