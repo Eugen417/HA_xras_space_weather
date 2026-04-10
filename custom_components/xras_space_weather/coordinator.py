@@ -100,6 +100,8 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
                 yesterday_fact = kp_fact_data["data"][1]
                 
                 parsed_data["kp_forecast_today"] = today_fact.get("max_kp", "unknown")
+                
+                # Временно берем F10 из старого файла (на случай, если файла прогноза нет)
                 parsed_data["f10_forecast_today"] = today_fact.get("f10", "unknown")
 
                 latest_kp = "unknown"
@@ -119,14 +121,22 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
 
             if kp_forecast_data and "data" in kp_forecast_data:
                 msk_tz = timezone(timedelta(hours=3))
-                tomorrow_msk = datetime.now(msk_tz) + timedelta(days=1)
-                tmrw_str = tomorrow_msk.strftime('%Y-%m-%d')
+                now_msk = datetime.now(msk_tz)
+                today_str = now_msk.strftime('%Y-%m-%d')
+                tmrw_str = (now_msk + timedelta(days=1)).strftime('%Y-%m-%d')
                 
                 parsed_data["kp_forecast_tomorrow"] = "unknown"
+                
                 for day in kp_forecast_data["data"]:
+                    # Ищем прогноз Kp на завтра
                     if day.get("time") == tmrw_str:
                         parsed_data["kp_forecast_tomorrow"] = day.get("max_kp", "unknown")
-                        break
+                    # Ищем прогноз F10.7 на СЕГОДНЯ из файла kpf (он актуальнее!)
+                    elif day.get("time") == today_str:
+                        kpf_f10 = day.get("f10", "unknown")
+                        # Перезаписываем значение, только если оно не пустое
+                        if kpf_f10 not in ["null", None, "", "unknown"]:
+                            parsed_data["f10_forecast_today"] = kpf_f10
 
             parsed_data["aurora_probability_local"] = "unknown"
             soup_aurora = BeautifulSoup(aurora_html, 'html.parser')
