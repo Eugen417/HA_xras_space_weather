@@ -7,7 +7,7 @@ URL_HTML_AURORA = "https://xras.ru/aurora.html"
 URL_HTML_FLARES = "https://xras.ru/sun_flares.html"
 UPDATE_INTERVAL_MINUTES = 30
 
-# Полный список городов представленных в сервисе (https://xras.ru) для: России, СНГ, Европы, Канады, США, Индии, Океании
+# Полный список городов представленных в сервисе (https://xras.ru) для: России, СНГ, Европы, Канады, США, Индии, Океании (399 городов)
 CITIES = {
     "abakan": {"id": "QYPM", "name": "Абакан"},
     "anadyr": {"id": "SSWT", "name": "Анадырь"},
