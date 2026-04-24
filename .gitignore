@@ -1,0 +1,16 @@
+# Python bytecode (кэш компиляции)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Временные файлы операционных систем
+.DS_Store
+Thumbs.db
+
+# Логи Home Assistant (если вдруг попадут в папку)
+*.log
+
+# Временные файлы редакторов
+.vscode/
+.idea/
+*.swp
