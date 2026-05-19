@@ -1,3 +1,12 @@
+<div align="center">
+
+[![GitHub Release](https://img.shields.io/github/v/release/Eugen417/HA_xras_space_weather?style=flat-square)](https://github.com/Eugen417/HA_xras_space_weather/releases)
+[![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg?style=flat-square)](https://github.com/hacs/integration)
+[![License](https://img.shields.io/github/license/Eugen417/HA_xras_space_weather?style=flat-square)](https://github.com/Eugen417/HA_xras_space_weather/blob/main/LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/Eugen417/HA_xras_space_weather?style=flat-square)](https://github.com/Eugen417/HA_xras_space_weather/stargazers)
+
+</div>
+
 # 🌌 Space Weather IKI RAN (HACS)
 
 Интеграция для Home Assistant, предоставляющая детальные данные о космической погоде напрямую от **Института космических исследований РАН**. Включает уникальную анимированную карточку, которая меняет свой фон в реальном времени в зависимости от уровня магнитных бурь.
