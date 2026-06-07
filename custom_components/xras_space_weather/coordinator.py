@@ -53,7 +53,8 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
             url_ai = f"{URL_JSON_BASE}/ai_{self.city_internal_id}.json"
             url_xray = f"{URL_JSON_BASE}/xray_{self.city_internal_id}.json"
             url_kp_fact = f"{URL_JSON_BASE}/kp_{self.city_internal_id}.json"
-            url_kp_forecast = f"{URL_JSON_BASE}/kpf_{self.city_internal_id}.json"
+            # ВНИМАНИЕ: Изменен адрес файла прогноза с kpf_ на kpfl_
+            url_kp_forecast = f"{URL_JSON_BASE}/kpfl_{self.city_internal_id}.json"
 
             if is_ru:
                 url_aurora_html = f"https://xras.ru/aurora.html/{self.city_alias}/"
@@ -74,7 +75,6 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
             )
 
             # === БРОНЕБОЙНАЯ ЗАЩИТА ОТ ОШИБОК ===
-            # Если какая-то ссылка выдаст 404, мы просто пишем предупреждение и работаем дальше!
             for i, res in enumerate(results):
                 if isinstance(res, Exception):
                     _LOGGER.warning(f"Источник {i} временно недоступен: {res}")
@@ -96,8 +96,11 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
                 parsed_data["solar_xray_latest"] = xray_data["data"][0].get("long", "unknown")
 
             if kp_fact_data and "data" in kp_fact_data and len(kp_fact_data["data"]) >= 2:
-                today_fact = kp_fact_data["data"][0]
-                yesterday_fact = kp_fact_data["data"][1]
+                # ЗАЩИТА: Принудительно сортируем даты по убыванию, 
+                # чтобы первым (0) всегда шел самый свежий день, даже если на сервере всё перемешали!
+                sorted_facts = sorted(kp_fact_data["data"], key=lambda x: x.get("time", ""), reverse=True)
+                today_fact = sorted_facts[0]
+                yesterday_fact = sorted_facts[1]
                 
                 parsed_data["kp_forecast_today"] = today_fact.get("max_kp", "unknown")
                 
@@ -131,7 +134,7 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
                     # Ищем прогноз Kp на завтра
                     if day.get("time") == tmrw_str:
                         parsed_data["kp_forecast_tomorrow"] = day.get("max_kp", "unknown")
-                    # Ищем прогноз F10.7 на СЕГОДНЯ из файла kpf (он актуальнее!)
+                    # Ищем прогноз F10.7 на СЕГОДНЯ из файла kpfl
                     elif day.get("time") == today_str:
                         kpf_f10 = day.get("f10", "unknown")
                         # Перезаписываем значение, только если оно не пустое
