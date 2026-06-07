@@ -34,13 +34,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
         ])
         
-        # 2. Формируем URL
+        # 2. Формируем URL для обеих карточек
         cache_buster = str(time.time()).replace(".", "")
-        js_url = f"{url_base}/space-weather-card.js?v={cache_buster}"
+        js_url_classic = f"{url_base}/space-weather-card.js?v={cache_buster}"
+        js_url_lit = f"{url_base}/space-weather-card-lit.js?v={cache_buster}"
         
-        # 3. Безопасная регистрация в Lovelace
-        hass.async_create_task(async_register_resource(hass, js_url))
-        _LOGGER.info("Запущена фоновая регистрация карточки (версия: %s)", cache_buster)
+        # 3. Безопасная регистрация обеих карточек в Lovelace
+        hass.async_create_task(async_register_resource(hass, js_url_classic, "space-weather-card.js"))
+        hass.async_create_task(async_register_resource(hass, js_url_lit, "space-weather-card-lit.js"))
+        
+        _LOGGER.info("Запущена фоновая регистрация карточек (версия: %s)", cache_buster)
     else:
         _LOGGER.error("Критическая ошибка: папка www не найдена по пути %s", www_dir)
 
@@ -56,7 +59,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     return True
 
-async def async_register_resource(hass: HomeAssistant, url: str):
+async def async_register_resource(hass: HomeAssistant, url: str, filename: str):
     """Безопасное добавление карточки в ресурсы Lovelace."""
     try:
         await hass.async_block_till_done()
@@ -74,7 +77,8 @@ async def async_register_resource(hass: HomeAssistant, url: str):
 
         existing_id = None
         for res in resources.async_items():
-            if "space-weather-card.js" in res.get("url", ""):
+            # Теперь ищем конкретный файл, чтобы не перезаписать соседнюю карточку
+            if filename in res.get("url", ""):
                 existing_id = res["id"]
                 break
 
@@ -83,13 +87,13 @@ async def async_register_resource(hass: HomeAssistant, url: str):
                 "res_type": "module",
                 "url": url
             })
-            _LOGGER.info("Ресурс карточки xras успешно обновлен")
+            _LOGGER.info(f"Ресурс карточки {filename} успешно обновлен")
         else:
             await resources.async_create_item({
                 "res_type": "module",
                 "url": url
             })
-            _LOGGER.info("Карточка xras успешно добавлена в ресурсы Lovelace")
+            _LOGGER.info(f"Карточка {filename} успешно добавлена в ресурсы Lovelace")
 
     except Exception as err:
         _LOGGER.error("Ошибка при регистрации ресурса Lovelace: %s", err)
