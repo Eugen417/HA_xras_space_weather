@@ -1,10 +1,9 @@
 console.info(
-  "%c 🌌 SPACE-WEATHER-CARD %c v2.0.0 (Lit) ",
+  "%c 🌌 SPACE-WEATHER-CARD %c v2.0.1 (Lit) ",
   "color: white; background: #1c1c1c; font-weight: 700;",
   "color: white; background: #03a9f4; font-weight: 700;"
 );
 
-// 1. МУЛЬТИЯЗЫЧНОСТЬ
 const TRANSLATIONS = {
   en: {
     tabs: { summary: "Summary", details: "Details", forecast: "Forecast" },
@@ -30,10 +29,7 @@ const TRANSLATIONS = {
     desc_storm: "Storm G",
     card_name: "Space Weather (Tabs)",
     card_desc: "Modern multi-page card for IKI RAN space weather",
-    editor: {
-      title: "Space Weather Card Setup",
-      city_label: "City Name Override (Optional)"
-    }
+    editor: { title: "Space Weather Card Setup", city_label: "City Name Override (Optional)" }
   },
   ru: {
     tabs: { summary: "Сводка", details: "Детали", forecast: "Прогноз" },
@@ -59,67 +55,34 @@ const TRANSLATIONS = {
     desc_storm: "Буря G",
     card_name: "Космическая погода (Вкладки)",
     card_desc: "Многостраничная карточка ИКИ РАН",
-    editor: {
-      title: "Настройка карточки космической погоды",
-      city_label: "Название города (Необязательно)"
-    }
+    editor: { title: "Настройка карточки космической погоды", city_label: "Название города (Необязательно)" }
   }
 };
 
-// 2. ИМПОРТ ИЗ БАЗОВОГО HOME ASSISTANT
 const LitElement = Object.getPrototypeOf(customElements.get("ha-panel-lovelace"));
 const html = LitElement.prototype.html;
 const css = LitElement.prototype.css;
 
-// 3. ОСНОВНОЙ КЛАСС КАРТОЧКИ
 class SpaceWeatherCardLit extends LitElement {
   
-  static get properties() {
-    return {
-      hass: { type: Object },
-      config: { type: Object },
-      _activeTab: { type: String, state: true }
-    };
-  }
-
-  constructor() {
-    super();
-    this._activeTab = 'summary'; 
-    this._currentVideoUrl = '';
-  }
-
-  setConfig(config) {
-    if (!config) throw new Error("Invalid configuration");
-    this.config = config;
-  }
-
+  static get properties() { return { hass: { type: Object }, config: { type: Object }, _activeTab: { type: String, state: true } }; }
+  constructor() { super(); this._activeTab = 'summary'; }
+  setConfig(config) { if (!config) throw new Error("Invalid config"); this.config = config; }
   getCardSize() { return 6; }
-
   static getConfigElement() { return document.createElement("space-weather-card-lit-editor"); }
-
   static getStubConfig() { return { type: "custom:space-weather-card-lit", city: "" }; }
 
-  get t() {
-    const lang = (this.hass?.language || 'en').substring(0, 2);
-    return TRANSLATIONS[lang] || TRANSLATIONS['en'];
-  }
+  get t() { const lang = (this.hass?.language || 'en').substring(0, 2); return TRANSLATIONS[lang] || TRANSLATIONS['en']; }
 
   _getEntityData(suffix) {
     if (!this.hass) return { state: '--', time: '--:--', attributes: {} };
     let entityId = this.config[`entity_${suffix}`];
-    if (!entityId) {
-        for (let eid in this.hass.states) {
-            if (eid.includes(suffix)) { entityId = eid; break; }
-        }
-    }
+    if (!entityId) { for (let eid in this.hass.states) { if (eid.includes(suffix)) { entityId = eid; break; } } }
     if (entityId && this.hass.states[entityId]) {
       const stateObj = this.hass.states[entityId];
       let timeStr = '--:--';
       if (stateObj.last_updated) {
-        try {
-          const d = new Date(stateObj.last_updated.replace(' ', 'T'));
-          if (!isNaN(d.getTime())) timeStr = d.toLocaleTimeString(this.hass.language || 'ru-RU', { hour: '2-digit', minute: '2-digit' });
-        } catch(e) {}
+        try { const d = new Date(stateObj.last_updated.replace(' ', 'T')); if (!isNaN(d.getTime())) timeStr = d.toLocaleTimeString(this.hass.language || 'ru-RU', { hour: '2-digit', minute: '2-digit' }); } catch(e) {}
       }
       return { state: String(stateObj.state), time: timeStr, attributes: stateObj.attributes || {} };
     }
@@ -135,20 +98,6 @@ class SpaceWeatherCardLit extends LitElement {
 
   _switchTab(tab) { this._activeTab = tab; }
 
-  updated(changedProps) {
-      if (this._activeTab === 'summary') {
-        const videoEl = this.shadowRoot.querySelector('#bg-video');
-        if (videoEl && videoEl.src !== this._currentVideoUrl) {
-            videoEl.src = this._currentVideoUrl;
-            videoEl.muted = true;
-            videoEl.defaultMuted = true;
-            videoEl.setAttribute('playsinline', '');
-            videoEl.setAttribute('webkit-playsinline', '');
-            videoEl.play().catch(() => {});
-        }
-      }
-  }
-
   render() {
     if (!this.hass || !this.config) return html``;
 
@@ -162,9 +111,7 @@ class SpaceWeatherCardLit extends LitElement {
     const flaresLast = this._getEntityData('solar_flare_last_info');
 
     let cityName = aurora.attributes.location_name || this.config.city || this.t.loc_default;
-    if ((this.hass.language || 'en').substring(0, 2) === 'en' && aurora.attributes.location_name_en) {
-        cityName = aurora.attributes.location_name_en;
-    }
+    if ((this.hass.language || 'en').substring(0, 2) === 'en' && aurora.attributes.location_name_en) { cityName = aurora.attributes.location_name_en; }
     if (this.config.city) cityName = this.config.city; 
 
     const kpNum = parseFloat(kp.state);
@@ -179,11 +126,10 @@ class SpaceWeatherCardLit extends LitElement {
       else if (kpNum >= 6) { videoUrl = '/api/xras_sw_static/g2.mp4'; statusName = this.t.g2_status; badgeColor = 'var(--warning-color, #ff9800)'; }
       else if (kpNum >= 5) { videoUrl = '/api/xras_sw_static/g1.mp4'; statusName = this.t.g1_status; badgeColor = 'var(--warning-color, #ff9800)'; }
     }
-    this._currentVideoUrl = videoUrl;
 
     const renderSummary = () => html`
       <div class="header-container">
-        <video id="bg-video" class="bg-video" autoplay loop muted playsinline webkit-playsinline disablePictureInPicture disableRemotePlayback></video>
+        <video id="bg-video" class="bg-video" src=${videoUrl} autoplay loop muted playsinline webkit-playsinline disablePictureInPicture disableRemotePlayback></video>
         <div class="header-overlay">
           <div class="kp-city"><ha-icon icon="mdi:map-marker" style="--mdc-icon-size: 14px; margin-right: 4px;"></ha-icon>${cityName}</div>
           <div class="kp-main">${kp.state} <span style="font-size: 18px;">Kp</span></div>
@@ -195,34 +141,20 @@ class SpaceWeatherCardLit extends LitElement {
     const renderDetails = () => html`
       <div class="content-body">
         <div class="section-title"><ha-icon icon="mdi:aurora"></ha-icon> ${this.t.aurora_title}</div>
-        <div class="tile-row">
-            <span class="label">${this.t.ai_label}</span><span class="value">${ai.state} <span class="desc">(${this.t.at_time} ${ai.time})</span></span>
-        </div>
-        <div class="tile-row">
-            <span class="label">${this.t.prob_label}</span><span class="value">${aurora.state}%</span>
-        </div>
+        <div class="tile-row"><span class="label">${this.t.ai_label}</span><span class="value">${ai.state} <span class="desc">(${this.t.at_time} ${ai.time})</span></span></div>
+        <div class="tile-row"><span class="label">${this.t.prob_label}</span><span class="value">${aurora.state}%</span></div>
         <div class="section-title" style="margin-top: 16px;"><ha-icon icon="mdi:white-balance-sunny"></ha-icon> ${this.t.solar_title}</div>
-        <div class="tile-row">
-            <span class="label">${this.t.f10_label}</span><span class="value">${f10.state}</span>
-        </div>
-        <div class="tile-col">
-            <span class="label">${this.t.status_label}</span><span class="value" style="font-weight: normal;">${flaresStatus.state}</span>
-        </div>
-        <div class="tile-col">
-            <span class="label">${this.t.flare_label}</span><span class="value" style="font-weight: normal;">${flaresLast.state}</span>
-        </div>
+        <div class="tile-row"><span class="label">${this.t.f10_label}</span><span class="value">${f10.state}</span></div>
+        <div class="tile-col"><span class="label">${this.t.status_label}</span><span class="value" style="font-weight: normal;">${flaresStatus.state}</span></div>
+        <div class="tile-col"><span class="label">${this.t.flare_label}</span><span class="value" style="font-weight: normal;">${flaresLast.state}</span></div>
       </div>
     `;
 
     const renderForecast = () => html`
       <div class="content-body">
         <div class="section-title"><ha-icon icon="mdi:magnet"></ha-icon> ${this.t.storms_title}</div>
-        <div class="tile-row">
-            <span class="label">${this.t.max_today}</span><span class="value">${kpToday.state} <span class="desc">${this._getKpDesc(kpToday.state)}</span></span>
-        </div>
-        <div class="tile-row" style="margin-top: 8px;">
-            <span class="label">${this.t.tmrw}</span><span class="value">${kpTmrw.state} <span class="desc">${this._getKpDesc(kpTmrw.state)}</span></span>
-        </div>
+        <div class="tile-row"><span class="label">${this.t.max_today}</span><span class="value">${kpToday.state} <span class="desc">${this._getKpDesc(kpToday.state)}</span></span></div>
+        <div class="tile-row" style="margin-top: 8px;"><span class="label">${this.t.tmrw}</span><span class="value">${kpTmrw.state} <span class="desc">${this._getKpDesc(kpTmrw.state)}</span></span></div>
       </div>
     `;
 
@@ -270,7 +202,6 @@ class SpaceWeatherCardLit extends LitElement {
 }
 customElements.define('space-weather-card-lit', SpaceWeatherCardLit);
 
-// 4. РЕДАКТОР КАРТОЧКИ LIT
 class SpaceWeatherCardLitEditor extends LitElement {
   setConfig(config) { this._config = config; }
   get t() { const lang = (this.hass?.language || 'en').substring(0, 2); return TRANSLATIONS[lang] || TRANSLATIONS['en']; }
@@ -288,9 +219,7 @@ class SpaceWeatherCardLitEditor extends LitElement {
     const target = ev.target;
     if (this[`_${target.configValue}`] === target.value) return;
     this._config = { ...this._config, [target.configValue]: target.value };
-    const event = new Event("config-changed", { bubbles: true, composed: true });
-    event.detail = { config: this._config };
-    this.dispatchEvent(event);
+    this.dispatchEvent(new Event("config-changed", { bubbles: true, composed: true, detail: { config: this._config } }));
   }
   static get styles() { return css` .card-config { display: flex; flex-direction: column; gap: 16px; } ha-textfield { width: 100%; } `; }
 }
