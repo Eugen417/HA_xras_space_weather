@@ -1,4 +1,4 @@
-"""Координатор данных для интеграции ИКИ РАН: Космическая погода."""
+"""Координатор данных для интеграции ИКИ РАН: Космическая погода.v1.0.8"""
 import logging
 import asyncio
 import re
@@ -52,15 +52,15 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
 
             url_ai = f"{URL_JSON_BASE}/ai_{self.city_internal_id}.json"
             url_xray = f"{URL_JSON_BASE}/xray_{self.city_internal_id}.json"
-            url_kp_fact = f"{URL_JSON_BASE}/kp_{self.city_internal_id}.json"
-            # ВНИМАНИЕ: Изменен адрес файла прогноза с kpf_ на kpfl_
+            
+            # ВНИМАНИЕ: Используются новые адреса ИКИ РАН
+            url_kp_fact = f"{URL_JSON_BASE}/kpm_{self.city_internal_id}.json"
             url_kp_forecast = f"{URL_JSON_BASE}/kpfl_{self.city_internal_id}.json"
 
             if is_ru:
                 url_aurora_html = f"https://xras.ru/aurora.html/{self.city_alias}/"
                 url_flares_html = "https://xras.ru/sun_flares.html"
             else:
-                # Используем стандартный путь (он надежнее)
                 url_aurora_html = f"https://xras.ru/en/aurora.html/{self.city_alias}/"
                 url_flares_html = "https://xras.ru/en/sun_flares.html"
 
@@ -74,7 +74,6 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
                 return_exceptions=True
             )
 
-            # === БРОНЕБОЙНАЯ ЗАЩИТА ОТ ОШИБОК ===
             for i, res in enumerate(results):
                 if isinstance(res, Exception):
                     _LOGGER.warning(f"Источник {i} временно недоступен: {res}")
@@ -95,21 +94,32 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
             if xray_data and "data" in xray_data and len(xray_data["data"]) > 0:
                 parsed_data["solar_xray_latest"] = xray_data["data"][0].get("long", "unknown")
 
-            if kp_fact_data and "data" in kp_fact_data and len(kp_fact_data["data"]) >= 2:
-                # ЗАЩИТА: Принудительно сортируем даты по убыванию, 
-                # чтобы первым (0) всегда шел самый свежий день, даже если на сервере всё перемешали!
-                sorted_facts = sorted(kp_fact_data["data"], key=lambda x: x.get("time", ""), reverse=True)
-                today_fact = sorted_facts[0]
-                yesterday_fact = sorted_facts[1]
+            # БАЗОВОЕ ВРЕМЯ (МСК) ДЛЯ СРАВНЕНИЯ ДАТ
+            msk_tz = timezone(timedelta(hours=3))
+            now_msk = datetime.now(msk_tz)
+            today_str = now_msk.strftime('%Y-%m-%d')
+            yesterday_str = (now_msk - timedelta(days=1)).strftime('%Y-%m-%d')
+            tmrw_str = (now_msk + timedelta(days=1)).strftime('%Y-%m-%d')
+
+            # --- ОБРАБОТКА ФАКТИЧЕСКИХ БУРЬ (kpm) ---
+            if kp_fact_data and "data" in kp_fact_data:
+                today_fact = {}
+                yesterday_fact = {}
                 
+                # Ищем данные ЖЕЛЕЗНО за сегодня и вчера, независимо от сортировки
+                for day in kp_fact_data["data"]:
+                    if day.get("time") == today_str:
+                        today_fact = day
+                    elif day.get("time") == yesterday_str:
+                        yesterday_fact = day
+
                 parsed_data["kp_forecast_today"] = today_fact.get("max_kp", "unknown")
-                
-                # Временно берем F10 из старого файла (на случай, если файла прогноза нет)
                 parsed_data["f10_forecast_today"] = today_fact.get("f10", "unknown")
 
                 latest_kp = "unknown"
                 hours = ['h00', 'h03', 'h06', 'h09', 'h12', 'h15', 'h18', 'h21']
                 
+                # Пытаемся найти почасовые данные (на случай если ИКИ РАН вернет их обратно)
                 for h in hours:
                     val = yesterday_fact.get(h)
                     if val not in ["null", None, "", "-1", "-2"]:
@@ -120,24 +130,30 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
                     if val not in ["null", None, "", "-1", "-2"]:
                         latest_kp = str(val).replace('-', '')
                 
+                # РЕЗЕРВНЫЙ ПЛАН: если почасовых данных нет, берем максимальный Kp за сегодня
+                if latest_kp == "unknown" and today_fact.get("max_kp") not in ["null", None, "", "unknown"]:
+                    latest_kp = today_fact.get("max_kp")
+                    
                 parsed_data["kp_current"] = latest_kp
 
+            # --- ОБРАБОТКА ПРОГНОЗА БУРЬ (kpfl) ---
             if kp_forecast_data and "data" in kp_forecast_data:
-                msk_tz = timezone(timedelta(hours=3))
-                now_msk = datetime.now(msk_tz)
-                today_str = now_msk.strftime('%Y-%m-%d')
-                tmrw_str = (now_msk + timedelta(days=1)).strftime('%Y-%m-%d')
-                
                 parsed_data["kp_forecast_tomorrow"] = "unknown"
                 
                 for day in kp_forecast_data["data"]:
-                    # Ищем прогноз Kp на завтра
                     if day.get("time") == tmrw_str:
                         parsed_data["kp_forecast_tomorrow"] = day.get("max_kp", "unknown")
-                    # Ищем прогноз F10.7 на СЕГОДНЯ из файла kpfl
+                    # Перехватываем прогноз Kp на сегодня (он точнее, чем в файле фактов!)
                     elif day.get("time") == today_str:
+                        # Если факт Kp пустой, берем из прогноза
+                        if parsed_data.get("kp_forecast_today", "unknown") in ["unknown", "null"]:
+                            parsed_data["kp_forecast_today"] = day.get("max_kp", "unknown")
+                        # Если текущий Kp пустой, берем из прогноза
+                        if parsed_data.get("kp_current", "unknown") in ["unknown", "null"]:
+                            parsed_data["kp_current"] = day.get("max_kp", "unknown")
+                            
+                        # Индекс F10 всегда берем из файла прогноза, он там не 'null'
                         kpf_f10 = day.get("f10", "unknown")
-                        # Перезаписываем значение, только если оно не пустое
                         if kpf_f10 not in ["null", None, "", "unknown"]:
                             parsed_data["f10_forecast_today"] = kpf_f10
 
@@ -179,7 +195,6 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
                     
                     local_time_str = time_local.strftime('%H:%M')
                     flare_text = flare_text.replace(match.group(0), local_time_str)
-                    
                     flare_text = flare_text.replace('МСК', 'Местн.').replace('MSK', 'Local').replace('UTC', 'Local')
                     
                 parsed_data["solar_flare_last_info"] = flare_text
