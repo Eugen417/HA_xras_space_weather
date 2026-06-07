@@ -1,5 +1,5 @@
 console.info(
-  "%c 🌌 SPACE-WEATHER-CARD %c v2.0.0 (Classic) ",
+  "%c 🌌 SPACE-WEATHER-CARD %c v2.0.1 (Classic) ",
   "color: white; background: #1c1c1c; font-weight: 700;",
   "color: white; background: #ff9800; font-weight: 700;"
 );
@@ -64,7 +64,7 @@ const cssClassic = LitElementClassic.prototype.css;
 class SpaceWeatherCardClassic extends LitElementClassic {
   static get properties() { return { hass: { type: Object }, config: { type: Object } }; }
   
-  constructor() { super(); this._currentVideoUrl = ''; }
+  constructor() { super(); }
   setConfig(config) { if (!config) throw new Error("Invalid config"); this.config = config; }
   getCardSize() { return 8; }
   static getConfigElement() { return document.createElement("sw-card-classic-editor"); }
@@ -96,16 +96,6 @@ class SpaceWeatherCardClassic extends LitElementClassic {
     return `(${this.t.desc_storm}${Math.floor(n - 4)})`;
   }
 
-  updated(changedProps) {
-    const videoEl = this.shadowRoot.querySelector('#bg-video');
-    if (videoEl && videoEl.src !== this._currentVideoUrl) {
-        videoEl.src = this._currentVideoUrl;
-        videoEl.muted = true; videoEl.defaultMuted = true;
-        videoEl.setAttribute('playsinline', ''); videoEl.setAttribute('webkit-playsinline', '');
-        videoEl.play().catch(() => {});
-    }
-  }
-
   render() {
     if (!this.hass || !this.config) return htmlClassic``;
 
@@ -134,12 +124,11 @@ class SpaceWeatherCardClassic extends LitElementClassic {
       else if (kpNum >= 6) { videoUrl = '/api/xras_sw_static/g2.mp4'; statusName = this.t.g2_status; badgeColor = 'var(--warning-color, #ff9800)'; }
       else if (kpNum >= 5) { videoUrl = '/api/xras_sw_static/g1.mp4'; statusName = this.t.g1_status; badgeColor = 'var(--warning-color, #ff9800)'; }
     }
-    this._currentVideoUrl = videoUrl;
 
     return htmlClassic`
       <ha-card>
         <div class="header-container">
-          <video id="bg-video" class="bg-video" autoplay loop muted playsinline webkit-playsinline disablePictureInPicture disableRemotePlayback></video>
+          <video id="bg-video" class="bg-video" src=${videoUrl} autoplay loop muted playsinline webkit-playsinline disablePictureInPicture disableRemotePlayback></video>
           <div class="header-overlay">
             <div class="kp-city"><ha-icon icon="mdi:map-marker" style="--mdc-icon-size: 14px; margin-right: 4px;"></ha-icon>${cityName}</div>
             <div class="kp-main">${kp.state} <span style="font-size: 18px;">Kp</span></div>
