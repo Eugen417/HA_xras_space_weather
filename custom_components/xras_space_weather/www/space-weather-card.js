@@ -1,5 +1,5 @@
 console.info(
-  "%c 🌌 SPACE-WEATHER-CARD %c v3.0.4 (Fixed) ",
+  "%c 🌌 SPACE-WEATHER-CARD %c v2.0.0 ",
   "color: white; background: #1c1c1c; font-weight: 700;",
   "color: white; background: #4caf50; font-weight: 700;"
 );
