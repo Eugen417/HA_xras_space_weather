@@ -1,4 +1,4 @@
-"""Координатор данных для интеграции ИКИ РАН: Космическая погода.v3.0.0"""
+"""Координатор данных для интеграции ИКИ РАН: Космическая погода.v3.0.1"""
 import logging
 import asyncio
 import re
@@ -86,12 +86,12 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
             url_kp_forecast = f"{URL_JSON_BASE}/kpfl_{self.city_internal_id}.json"
             url_kpf_3d = f"{URL_JSON_BASE}/kpf_{self.city_internal_id}.json"
             
-            # АДРЕСА СОЛНЕЧНОГО ВЕТРА (ВСЕ 5 ПАРАМЕТРОВ)
-            url_swv = f"{URL_JSON_BASE}/swv_{self.city_internal_id}.json" # Скорость
-            url_swbt = f"{URL_JSON_BASE}/swbt_{self.city_internal_id}.json" # Bt
-            url_swbz = f"{URL_JSON_BASE}/swbz_{self.city_internal_id}.json" # Bz
-            url_swt = f"{URL_JSON_BASE}/swt_{self.city_internal_id}.json" # Температура
-            url_swn = f"{URL_JSON_BASE}/swn_{self.city_internal_id}.json" # Плотность
+            # АДРЕСА СОЛНЕЧНОГО ВЕТРА
+            url_swv = f"{URL_JSON_BASE}/swv_{self.city_internal_id}.json" 
+            url_swbt = f"{URL_JSON_BASE}/swbt_{self.city_internal_id}.json" 
+            url_swbz = f"{URL_JSON_BASE}/swbz_{self.city_internal_id}.json" 
+            url_swt = f"{URL_JSON_BASE}/swt_{self.city_internal_id}.json" 
+            url_swn = f"{URL_JSON_BASE}/swn_{self.city_internal_id}.json" 
 
             url_aurora_html = f"https://xras.ru/{'aurora.html/' if is_ru else 'en/aurora.html/'}{self.city_alias}/"
             url_main_html = f"https://xras.ru/{'' if is_ru else 'en/'}"
@@ -130,10 +130,9 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
             aurora_html = get_res("aurora_html")
             main_html = get_res("main_html")
             active_areas_html = get_res("active_areas")
-            noaa_prob_raw = get_res("noaa_prob")
             kpf_3d_data = get_res("kpf_3d")
+            noaa_prob_raw = get_res("noaa_prob")
 
-            # ВЕТЕР
             swv_data = get_res("swv")
             swbt_data = get_res("swbt")
             swbz_data = get_res("swbz")
@@ -221,20 +220,29 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
                                 parsed_data["aurora_probability_local"] = val_span.text.replace(' %', '').strip()
                                 break
 
-            # 4. СОЛНЕЧНЫЕ ВСПЫШКИ
+            # 4. СОЛНЕЧНЫЕ ВСПЫШКИ (ТЕПЕРЬ С ИНДЕКСОМ)
             parsed_data["solar_flare_current_status"] = "В настоящий момент не наблюдаются" if is_ru else "None currently observed"
             parsed_data["solar_flare_last_info"] = "Нет данных" if is_ru else "No data"
             parsed_data["flare_summary"] = "0 вспышек за 24 часа | C — 0 | M — 0 | X — 0"
+            parsed_data["flare_index"] = "—" # ПО УМОЛЧАНИЮ ПУСТО
             parsed_data["flares_list"] = []
 
             if main_html:
                 soup_main = BeautifulSoup(main_html, 'html.parser')
+                
+                # Парсинг 10-балльного индекса с главной страницы
+                index_span = soup_main.select_one('.home-tile--flare .home-tile__badge')
+                if index_span:
+                    parsed_data["flare_index"] = index_span.text.strip()
+                
                 meta_spans = soup_main.select('.home-tile--flare .home-tile__meta-line')
                 if len(meta_spans) >= 2:
                     parsed_data["flare_summary"] = f"{meta_spans[0].text.strip()} {meta_spans[1].text.strip()}"
+                
                 title_span = soup_main.select_one('.home-tile--flare .home-tile__title')
                 if title_span:
                     parsed_data["solar_flare_current_status"] = title_span.text.strip()
+                
                 flares_parsed = []
                 for row in soup_main.select('.home-tile__flare-row'):
                     cls_elem = row.select_one('.home-tile__flare-class')
@@ -245,51 +253,47 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
                         time_val = time_elem.text.replace('\xa0', ' ').strip()
                         reg_val = area_elem.text.replace('—', '-').strip()
                         flares_parsed.append({"cls": cls_val, "time": time_val, "reg": reg_val})
+                
                 if flares_parsed:
                     last_f = flares_parsed[0]
                     parsed_data["solar_flare_last_info"] = f"Последняя вспышка: класс {last_f['cls']}, время {last_f['time']}, обл. {last_f['reg']}"
+                
                 parsed_data["flares_list"] = flares_parsed
 
-            # 5. СОЛНЕЧНЫЙ ВЕТЕР (ВСЕ 5 ПАРАМЕТРОВ)
+            # 5. СОЛНЕЧНЫЙ ВЕТЕР
             parsed_data["swv_current"] = "unknown"
             parsed_data["sw_bt"] = "0.0"
             parsed_data["sw_bz"] = "0.0"
             parsed_data["sw_density"] = "0.0"
             parsed_data["sw_temp"] = "0"
             
-            # Массивы истории ветра (для графиков)
             parsed_data["swv_history"] = []
             parsed_data["swbt_history"] = []
             parsed_data["swbz_history"] = []
             parsed_data["swt_history"] = []
             parsed_data["swn_history"] = []
 
-            # Скорость
             if swv_data and not swv_data.get("error") and "data" in swv_data and len(swv_data["data"]) > 0:
                 parsed_data["swv_current"] = swv_data["data"][0].get("v", "unknown")
                 parsed_data["swv_history"] = swv_data["data"][:60]
 
-            # Поле Bt
             if swbt_data and not swbt_data.get("error") and "data" in swbt_data and len(swbt_data["data"]) > 0:
                 parsed_data["sw_bt"] = str(swbt_data["data"][0].get("bt", "0.0"))
                 parsed_data["swbt_history"] = swbt_data["data"][:60]
 
-            # Поле Bz
             if swbz_data and not swbz_data.get("error") and "data" in swbz_data and len(swbz_data["data"]) > 0:
                 parsed_data["sw_bz"] = str(swbz_data["data"][0].get("bz", "0.0"))
                 parsed_data["swbz_history"] = swbz_data["data"][:60]
 
-            # Температура (t)
             if swt_data and not swt_data.get("error") and "data" in swt_data and len(swt_data["data"]) > 0:
                 parsed_data["sw_temp"] = str(swt_data["data"][0].get("t", "0"))
                 parsed_data["swt_history"] = swt_data["data"][:60]
 
-            # Плотность (n)
             if swn_data and not swn_data.get("error") and "data" in swn_data and len(swn_data["data"]) > 0:
                 parsed_data["sw_density"] = str(swn_data["data"][0].get("n", "0.0"))
                 parsed_data["swn_history"] = swn_data["data"][:60]
 
-            # 6А. ВЕРОЯТНОСТЬ БУРЬ (NOAA - СТАРЫЕ АТРИБУТЫ)
+            # 6. ВЕРОЯТНОСТЬ БУРЬ И ДЕТАЛЬНЫЙ 3-ДНЕВНЫЙ ПРОГНОЗ
             parsed_data["storm_prob_today"] = [15, 30, 55]
             parsed_data["storm_prob_tomorrow"] = [40, 40, 20]
             if noaa_prob_raw and isinstance(noaa_prob_raw, list) and len(noaa_prob_raw) > 0:
@@ -309,16 +313,20 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
                 except Exception:
                     pass
 
-            # 6Б. ВЕРОЯТНОСТЬ БУРЬ (ИКИ РАН - НОВЫЙ ДАТЧИК)
             parsed_data["xras_storm_prob_today"] = [100, 0, 0]
             parsed_data["xras_storm_prob_tomorrow"] = [100, 0, 0]
+            parsed_data["forecast_3d_array"] = [] 
+            
             if kpf_3d_data and not kpf_3d_data.get("error") and "data" in kpf_3d_data:
+                parsed_data["forecast_3d_array"] = kpf_3d_data["data"] 
+                
                 for day in kpf_3d_data["data"]:
                     try:
                         p4 = int(day.get("p4", 0))
                         p5 = int(day.get("p5", 0))
                         p6 = int(day.get("p6", 0))
                         p7 = int(day.get("p7", 0))
+                        
                         prob_yellow = p4
                         prob_red = p5 + p6 + p7
                         prob_green = max(0, 100 - prob_yellow - prob_red)
