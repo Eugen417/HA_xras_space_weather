@@ -1,4 +1,4 @@
-"""Сенсоры для интеграции ИКИ РАН: Космическая погода v3.0.0"""
+"""Сенсоры для интеграции ИКИ РАН: Космическая погода v3.0.1"""
 import logging
 import json
 
@@ -112,13 +112,11 @@ class XrasSensor(CoordinatorEntity, SensorEntity):
             attrs["time"] = data.get("aurora_time", "")
 
         elif self.sensor_type == "swv_current":
-            # Основные параметры
             attrs["sw_density"] = data.get("sw_density", "0.0")
             attrs["sw_temp"] = data.get("sw_temp", "0")
             attrs["sw_bt"] = data.get("sw_bt", "0.0")
             attrs["sw_bz"] = data.get("sw_bz", "0.0")
             
-            # Массивы истории для графиков
             attrs["history"] = data.get("swv_history", [])
             attrs["history_density"] = data.get("swn_history", [])
             attrs["history_temp"] = data.get("swt_history", [])
@@ -143,9 +141,11 @@ class XrasSensor(CoordinatorEntity, SensorEntity):
         elif self.sensor_type == "xras_storm_probability":
             attrs["prob_today"] = json.dumps(data.get("xras_storm_prob_today", [100, 0, 0]))
             attrs["prob_tomorrow"] = json.dumps(data.get("xras_storm_prob_tomorrow", [100, 0, 0]))
+            attrs["forecast_3d_array"] = data.get("forecast_3d_array", [])
 
         elif self.sensor_type == "solar_flare_current_status":
             attrs["flare_summary"] = data.get("flare_summary", "")
+            attrs["flare_index"] = data.get("flare_index", "—") # ВАШ НОВЫЙ ИНДЕКС ЗДЕСЬ!
             attrs["flares_list"] = json.dumps(data.get("flares_list", []))
 
         elif self.sensor_type == "f10_forecast_today":
