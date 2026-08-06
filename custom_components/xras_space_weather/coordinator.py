@@ -1,4 +1,4 @@
-"""Координатор данных для интеграции ИКИ РАН: Космическая погода.v3.0.2"""
+"""Координатор данных для интеграции ИКИ РАН: Космическая погода.v3.0.3"""
 import logging
 import asyncio
 import re
@@ -78,10 +78,7 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
         if val in (None, "null", "", "unknown"):
             return False
         try:
-            num = float(val)
-            # Если это отрицательное значение вроде -9999 или -99.9, мы его бракуем.
-            # Поле Bz может быть отрицательным, поэтому для него мы эту функцию использовать не будем,
-            # но для скорости (v), температуры (t), плотности (n) и поля Bt она идеальна.
+            num = float(str(val).replace(',', '.'))
             if num <= -100: 
                 return False
             return True
@@ -93,8 +90,8 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
         if val in (None, "null", "", "unknown"):
             return False
         try:
-            num = float(val)
-            if num <= -100: # Отсекаем технические -9999
+            num = float(str(val).replace(',', '.'))
+            if num <= -100: 
                 return False
             return True
         except ValueError:
@@ -204,7 +201,7 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
                         hours = ['h00', 'h03', 'h06', 'h09', 'h12', 'h15', 'h18', 'h21']
                         for h in hours:
                             val = day.get(h)
-                            if val not in ["null", None, "", "-1", "-2"]:
+                            if val not in ["null", None, "", "-1", "-2", "-9999", -9999]:
                                 latest_kp = str(val).replace('-', '')
 
             parsed_data["kp_current"] = latest_kp
@@ -225,7 +222,7 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
                          parsed_data["f10_forecast_today"] = day.get("f10", "unknown")
 
                 try:
-                    kps = [float(x["max_kp"]) for x in kp_forecast_data["data"] if x.get("max_kp") not in (None, "null", "unknown")]
+                    kps = [float(str(x["max_kp"]).replace(',', '.')) for x in kp_forecast_data["data"] if x.get("max_kp") not in (None, "null", "unknown", "-1", "-2")]
                     parsed_data["forecast27_max_kp"] = str(max(kps)) if kps else "unknown"
                 except Exception:
                     pass
@@ -283,7 +280,7 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
                 
                 parsed_data["flares_list"] = flares_parsed
 
-            # 5. СОЛНЕЧНЫЙ ВЕТЕР (НАДЕЖНЫЙ ПАРСИНГ С ЖЕСТКОЙ ФИЛЬТРАЦИЕЙ -9999.00)
+            # 5. СОЛНЕЧНЫЙ ВЕТЕР
             parsed_data["swv_current"] = "unknown"
             parsed_data["sw_bt"] = "0.0"
             parsed_data["sw_bz"] = "0.0"
@@ -296,41 +293,35 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
             parsed_data["swt_history"] = []
             parsed_data["swn_history"] = []
 
-            # Скорость
             if swv_data and not swv_data.get("error") and "data" in swv_data:
                 sw_arr = [x for x in swv_data["data"] if isinstance(x, dict) and self._is_valid_value(x.get("v"))]
                 if sw_arr:
                     parsed_data["swv_current"] = sw_arr[0]["v"]
                     parsed_data["swv_history"] = sw_arr[:60]
 
-            # Bt
             if swbt_data and not swbt_data.get("error") and "data" in swbt_data:
                 bt_arr = [x for x in swbt_data["data"] if isinstance(x, dict) and self._is_valid_value(x.get("bt"))]
                 if bt_arr:
                     parsed_data["sw_bt"] = str(bt_arr[0].get("bt", "0.0"))
                     parsed_data["swbt_history"] = bt_arr[:60]
 
-            # Bz (допускает минусовые значения, но не -9999)
             if swbz_data and not swbz_data.get("error") and "data" in swbz_data:
                 bz_arr = [x for x in swbz_data["data"] if isinstance(x, dict) and self._is_valid_bz(x.get("bz"))]
                 if bz_arr:
                     parsed_data["sw_bz"] = str(bz_arr[0].get("bz", "0.0"))
                     parsed_data["swbz_history"] = bz_arr[:60]
 
-            # Температура
             if swt_data and not swt_data.get("error") and "data" in swt_data:
                 t_arr = [x for x in swt_data["data"] if isinstance(x, dict) and self._is_valid_value(x.get("t"))]
                 if t_arr:
                     parsed_data["sw_temp"] = str(t_arr[0].get("t", "0"))
                     parsed_data["swt_history"] = t_arr[:60]
 
-            # Плотность
             if swn_data and not swn_data.get("error") and "data" in swn_data:
                 n_arr = [x for x in swn_data["data"] if isinstance(x, dict) and self._is_valid_value(x.get("n"))]
                 if n_arr:
                     parsed_data["sw_density"] = str(n_arr[0].get("n", "0.0"))
                     parsed_data["swn_history"] = n_arr[:60]
-
 
             # 6. ВЕРОЯТНОСТЬ БУРЬ И ДЕТАЛЬНЫЙ 3-ДНЕВНЫЙ ПРОГНОЗ
             parsed_data["storm_prob_today"] = [15, 30, 55]
@@ -355,9 +346,39 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
             parsed_data["xras_storm_prob_today"] = [100, 0, 0]
             parsed_data["xras_storm_prob_tomorrow"] = [100, 0, 0]
             parsed_data["forecast_3d_array"] = [] 
+            parsed_data["kp_max_24h"] = "unknown"
             
             if kpf_3d_data and not kpf_3d_data.get("error") and "data" in kpf_3d_data:
                 parsed_data["forecast_3d_array"] = kpf_3d_data["data"] 
+                
+                # --- УМНЫЙ РАСЧЕТ МАКСИМУМА НА РОВНО 24 ЧАСА ВПЕРЕД ---
+                try:
+                    current_hour = now_msk.hour
+                    start_idx = current_hour // 3
+                    hours = ['h00', 'h03', 'h06', 'h09', 'h12', 'h15', 'h18', 'h21']
+                    kp_24h_list = []
+                    
+                    for day in kpf_3d_data["data"]:
+                        if day.get("time") == today_str:
+                            for i in range(start_idx, 8):
+                                val = day.get(hours[i])
+                                if val not in (None, "null", "", "-1", "-2", "-9999", -9999):
+                                    try: kp_24h_list.append(float(str(val).replace(',', '.')))
+                                    except: pass
+                        elif day.get("time") == tmrw_str:
+                            # Здесь берем ровно до start_idx (не включая), чтобы окно было 24 часа!
+                            for i in range(0, start_idx):
+                                val = day.get(hours[i])
+                                if val not in (None, "null", "", "-1", "-2", "-9999", -9999):
+                                    try: kp_24h_list.append(float(str(val).replace(',', '.')))
+                                    except: pass
+                                    
+                    if kp_24h_list:
+                        parsed_data["kp_max_24h"] = str(max(kp_24h_list))
+                    else:
+                        parsed_data["kp_max_24h"] = parsed_data.get("kp_forecast_today", "unknown")
+                except Exception:
+                    pass
                 
                 for day in kpf_3d_data["data"]:
                     try:
