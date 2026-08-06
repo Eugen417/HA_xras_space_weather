@@ -1,4 +1,4 @@
-"""Сенсоры для интеграции ИКИ РАН: Космическая погода v3.0.1"""
+"""Сенсоры для интеграции ИКИ РАН: Космическая погода v3.0.2"""
 import logging
 import json
 
@@ -10,16 +10,33 @@ from .const import DOMAIN, CITIES
 
 _LOGGER = logging.getLogger(__name__)
 
-# Расширенный словарь сенсоров
+# Базовый список 9 сенсоров, которые включены по умолчанию
+BASE_SENSORS = {
+    "aurora_probability_local",
+    "solar_flare_current_status",
+    "solar_flare_last_info",
+    "aurora_index_latest",
+    "solar_xray_latest",
+    "kp_forecast_today",
+    "f10_forecast_today",
+    "kp_forecast_tomorrow",
+    "kp_current",
+}
+
+# Полный словарь всех поддерживаемых сенсоров
 SENSOR_TYPES = {
+    # --- Базовые сенсоры ---
     "aurora_probability_local": {"unit": "%", "icon": "mdi:aurora"},
     "solar_flare_current_status": {"unit": None, "icon": "mdi:white-balance-sunny"},
     "solar_flare_last_info": {"unit": None, "icon": "mdi:information-outline"},
     "aurora_index_latest": {"unit": "AI", "icon": "mdi:chart-bell-curve-cumulative"},
+    "solar_xray_latest": {"unit": "W/m²", "icon": "mdi:white-balance-sunny"},
     "kp_forecast_today": {"unit": "Kp", "icon": "mdi:magnet"},
     "f10_forecast_today": {"unit": "sfu", "icon": "mdi:sun-wireless"},
     "kp_forecast_tomorrow": {"unit": "Kp", "icon": "mdi:magnet-on"},
     "kp_current": {"unit": "Kp", "icon": "mdi:magnet"},
+    
+    # --- Дополнительные сенсоры (деактивированы по умолчанию) ---
     "swv_current": {"unit": "km/s", "icon": "mdi:weather-windy"},
     "xray_current": {"unit": "W/m²", "icon": "mdi:radioactive"},
     "forecast27_max_kp": {"unit": "Kp", "icon": "mdi:calendar-clock"},
@@ -39,7 +56,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class XrasSensor(CoordinatorEntity, SensorEntity):
-    """Класс сенсора с уникальными ID, переводами и массивами в атрибутах."""
+    """Класс сенсора с уникальными ID для каждого города."""
 
     _attr_has_entity_name = True 
 
@@ -49,7 +66,7 @@ class XrasSensor(CoordinatorEntity, SensorEntity):
         self.city_alias = city_alias
         self.sensor_type = sensor_type
         
-        city_info = CITIES.get(city_alias, {"name": "Неизвестно"})
+        city_info = CITIES[city_alias]
         self.city_name = city_info["name"]
         self.english_city_name = city_alias.replace('_', ' ').title()
         
@@ -62,6 +79,9 @@ class XrasSensor(CoordinatorEntity, SensorEntity):
         self._attr_unique_id = f"xras_{city_alias}_{sensor_type}"
         self._attr_icon = sensor_info["icon"]
         self._attr_native_unit_of_measurement = sensor_info["unit"]
+        
+        # Деактивация дополнительных сенсоров по умолчанию
+        self._attr_entity_registry_enabled_default = sensor_type in BASE_SENSORS
         
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, city_alias)},
@@ -110,6 +130,7 @@ class XrasSensor(CoordinatorEntity, SensorEntity):
 
         if self.sensor_type == "aurora_index_latest":
             attrs["time"] = data.get("aurora_time", "")
+            attrs["aurora_index"] = self.native_value
 
         elif self.sensor_type == "swv_current":
             attrs["sw_density"] = data.get("sw_density", "0.0")
@@ -117,11 +138,13 @@ class XrasSensor(CoordinatorEntity, SensorEntity):
             attrs["sw_bt"] = data.get("sw_bt", "0.0")
             attrs["sw_bz"] = data.get("sw_bz", "0.0")
             
-            attrs["history"] = data.get("swv_history", [])
-            attrs["history_density"] = data.get("swn_history", [])
-            attrs["history_temp"] = data.get("swt_history", [])
-            attrs["history_bt"] = data.get("swbt_history", [])
-            attrs["history_bz"] = data.get("swbz_history", [])
+            history_v = data.get("swv_history", [])
+            attrs["history"] = history_v
+            attrs["sw_history_v"] = history_v
+            attrs["sw_history_n"] = data.get("swn_history", [])
+            attrs["sw_history_t"] = data.get("swt_history", [])
+            attrs["sw_history_bt"] = data.get("swbt_history", [])
+            attrs["sw_history_bz"] = data.get("swbz_history", [])
 
         elif self.sensor_type == "xray_current":
             attrs["history"] = data.get("xray_history", [])
@@ -145,7 +168,7 @@ class XrasSensor(CoordinatorEntity, SensorEntity):
 
         elif self.sensor_type == "solar_flare_current_status":
             attrs["flare_summary"] = data.get("flare_summary", "")
-            attrs["flare_index"] = data.get("flare_index", "—") # ВАШ НОВЫЙ ИНДЕКС ЗДЕСЬ!
+            attrs["flare_index"] = data.get("flare_index", "—")
             attrs["flares_list"] = json.dumps(data.get("flares_list", []))
 
         elif self.sensor_type == "f10_forecast_today":
@@ -155,5 +178,6 @@ class XrasSensor(CoordinatorEntity, SensorEntity):
 
         elif self.sensor_type == "aurora_probability_local":
             attrs["history"] = data.get("aurora_history", [])
+            attrs["aurora_prob"] = self.native_value
 
         return attrs
