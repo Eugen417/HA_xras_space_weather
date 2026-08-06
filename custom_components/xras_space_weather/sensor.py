@@ -1,4 +1,4 @@
-"""Сенсоры для интеграции ИКИ РАН: Космическая погода v3.0.2"""
+"""Сенсоры для интеграции ИКИ РАН: Космическая погода. v3.0.3"""
 import logging
 import json
 
@@ -108,7 +108,7 @@ class XrasSensor(CoordinatorEntity, SensorEntity):
             
         if self._attr_native_unit_of_measurement is not None:
             try:
-                return float(val)
+                return float(str(val).replace(',', '.'))
             except ValueError:
                 return None
                 
@@ -162,8 +162,16 @@ class XrasSensor(CoordinatorEntity, SensorEntity):
             attrs["storm_prob_tomorrow"] = json.dumps(data.get("storm_prob_tomorrow", [63, 25, 12]))
 
         elif self.sensor_type == "xras_storm_probability":
+            # Родные вероятности ИКИ РАН
             attrs["prob_today"] = json.dumps(data.get("xras_storm_prob_today", [100, 0, 0]))
             attrs["prob_tomorrow"] = json.dumps(data.get("xras_storm_prob_tomorrow", [100, 0, 0]))
+            
+            # --- ВСЕ НУЖНЫЕ ДАННЫЕ ДЛЯ ВИДЖЕТА INKER В ОДНОМ МЕСТЕ ---
+            attrs["storm_prob_today"] = json.dumps(data.get("storm_prob_today", [15, 35, 50]))
+            attrs["storm_prob_tomorrow"] = json.dumps(data.get("storm_prob_tomorrow", [63, 25, 12]))
+            attrs["kp_today"] = data.get("kp_forecast_today", "0")
+            attrs["kp_tomorrow"] = data.get("kp_forecast_tomorrow", "0")
+            attrs["kp_max_24h"] = data.get("kp_max_24h", "0") # Тот самый точный 24-часовой максимум!
             attrs["forecast_3d_array"] = data.get("forecast_3d_array", [])
 
         elif self.sensor_type == "solar_flare_current_status":
