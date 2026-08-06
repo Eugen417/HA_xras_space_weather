@@ -29,7 +29,7 @@
       "kp_forecast_tomorrow": { "name": "Прогноз Kp на завтра" },
       "kp_current": { "name": "Текущий Kp индекс" },
       "swv_current": { "name": "Скорость солнечного ветра" },
-      "xray_current": { "name": "Рентгеновское излучение" },
+      "xray_current": { "name": "Рентгеновское излучение (График)" },
       "forecast27_max_kp": { "name": "Прогноз активности (27 дней)" },
       "xras_storm_probability": { "name": "Вероятность бури (ИКИ РАН)" }
     }
