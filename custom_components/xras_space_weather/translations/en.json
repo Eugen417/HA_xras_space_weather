@@ -27,7 +27,11 @@
       "kp_forecast_today": { "name": "Kp Forecast Today" },
       "f10_forecast_today": { "name": "F10.7 Forecast Today" },
       "kp_forecast_tomorrow": { "name": "Kp Forecast Tomorrow" },
-      "kp_current": { "name": "Current Kp Index" }
+      "kp_current": { "name": "Current Kp Index" },
+      "swv_current": { "name": "Solar Wind Speed" },
+      "xray_current": { "name": "Solar X-Ray (Detailed)" },
+      "forecast27_max_kp": { "name": "Activity Forecast (27 days)" },
+      "xras_storm_probability": { "name": "Storm Probability (IKI RAN)" }
     }
   }
 }
