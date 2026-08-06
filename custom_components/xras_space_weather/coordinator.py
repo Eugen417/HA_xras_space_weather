@@ -1,4 +1,4 @@
-"""Координатор данных для интеграции ИКИ РАН: Космическая погода.v3.0.1"""
+"""Координатор данных для интеграции ИКИ РАН: Космическая погода.v3.0.2"""
 import logging
 import asyncio
 import re
@@ -73,12 +73,38 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
         except Exception:
             return "Неизвестно" if is_ru else "Unknown"
 
+    def _is_valid_value(self, val):
+        """Проверяет, является ли значение реальным числом больше нуля (отсекает -9999.00 и null)"""
+        if val in (None, "null", "", "unknown"):
+            return False
+        try:
+            num = float(val)
+            # Если это отрицательное значение вроде -9999 или -99.9, мы его бракуем.
+            # Поле Bz может быть отрицательным, поэтому для него мы эту функцию использовать не будем,
+            # но для скорости (v), температуры (t), плотности (n) и поля Bt она идеальна.
+            if num <= -100: 
+                return False
+            return True
+        except ValueError:
+            return False
+
+    def _is_valid_bz(self, val):
+        """Специальная проверка для Bz (может быть отрицательным, но не -9999)"""
+        if val in (None, "null", "", "unknown"):
+            return False
+        try:
+            num = float(val)
+            if num <= -100: # Отсекаем технические -9999
+                return False
+            return True
+        except ValueError:
+            return False
+
     async def _async_update_data(self):
         try:
             lang = self.hass.config.language
             is_ru = lang.startswith('ru')
 
-            # Базовые адреса
             url_ai = f"{URL_JSON_BASE}/ai_{self.city_internal_id}.json"
             url_xray = f"{URL_JSON_BASE}/xray_{self.city_internal_id}.json"
             url_kp_3d = f"{URL_JSON_BASE}/kp_{self.city_internal_id}.json"
@@ -86,7 +112,6 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
             url_kp_forecast = f"{URL_JSON_BASE}/kpfl_{self.city_internal_id}.json"
             url_kpf_3d = f"{URL_JSON_BASE}/kpf_{self.city_internal_id}.json"
             
-            # АДРЕСА СОЛНЕЧНОГО ВЕТРА
             url_swv = f"{URL_JSON_BASE}/swv_{self.city_internal_id}.json" 
             url_swbt = f"{URL_JSON_BASE}/swbt_{self.city_internal_id}.json" 
             url_swbz = f"{URL_JSON_BASE}/swbz_{self.city_internal_id}.json" 
@@ -220,17 +245,15 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
                                 parsed_data["aurora_probability_local"] = val_span.text.replace(' %', '').strip()
                                 break
 
-            # 4. СОЛНЕЧНЫЕ ВСПЫШКИ (ТЕПЕРЬ С ИНДЕКСОМ)
+            # 4. СОЛНЕЧНЫЕ ВСПЫШКИ
             parsed_data["solar_flare_current_status"] = "В настоящий момент не наблюдаются" if is_ru else "None currently observed"
             parsed_data["solar_flare_last_info"] = "Нет данных" if is_ru else "No data"
             parsed_data["flare_summary"] = "0 вспышек за 24 часа | C — 0 | M — 0 | X — 0"
-            parsed_data["flare_index"] = "—" # ПО УМОЛЧАНИЮ ПУСТО
+            parsed_data["flare_index"] = "—"
             parsed_data["flares_list"] = []
 
             if main_html:
                 soup_main = BeautifulSoup(main_html, 'html.parser')
-                
-                # Парсинг 10-балльного индекса с главной страницы
                 index_span = soup_main.select_one('.home-tile--flare .home-tile__badge')
                 if index_span:
                     parsed_data["flare_index"] = index_span.text.strip()
@@ -260,7 +283,7 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
                 
                 parsed_data["flares_list"] = flares_parsed
 
-            # 5. СОЛНЕЧНЫЙ ВЕТЕР
+            # 5. СОЛНЕЧНЫЙ ВЕТЕР (НАДЕЖНЫЙ ПАРСИНГ С ЖЕСТКОЙ ФИЛЬТРАЦИЕЙ -9999.00)
             parsed_data["swv_current"] = "unknown"
             parsed_data["sw_bt"] = "0.0"
             parsed_data["sw_bz"] = "0.0"
@@ -273,25 +296,41 @@ class XrasDataUpdateCoordinator(DataUpdateCoordinator):
             parsed_data["swt_history"] = []
             parsed_data["swn_history"] = []
 
-            if swv_data and not swv_data.get("error") and "data" in swv_data and len(swv_data["data"]) > 0:
-                parsed_data["swv_current"] = swv_data["data"][0].get("v", "unknown")
-                parsed_data["swv_history"] = swv_data["data"][:60]
+            # Скорость
+            if swv_data and not swv_data.get("error") and "data" in swv_data:
+                sw_arr = [x for x in swv_data["data"] if isinstance(x, dict) and self._is_valid_value(x.get("v"))]
+                if sw_arr:
+                    parsed_data["swv_current"] = sw_arr[0]["v"]
+                    parsed_data["swv_history"] = sw_arr[:60]
 
-            if swbt_data and not swbt_data.get("error") and "data" in swbt_data and len(swbt_data["data"]) > 0:
-                parsed_data["sw_bt"] = str(swbt_data["data"][0].get("bt", "0.0"))
-                parsed_data["swbt_history"] = swbt_data["data"][:60]
+            # Bt
+            if swbt_data and not swbt_data.get("error") and "data" in swbt_data:
+                bt_arr = [x for x in swbt_data["data"] if isinstance(x, dict) and self._is_valid_value(x.get("bt"))]
+                if bt_arr:
+                    parsed_data["sw_bt"] = str(bt_arr[0].get("bt", "0.0"))
+                    parsed_data["swbt_history"] = bt_arr[:60]
 
-            if swbz_data and not swbz_data.get("error") and "data" in swbz_data and len(swbz_data["data"]) > 0:
-                parsed_data["sw_bz"] = str(swbz_data["data"][0].get("bz", "0.0"))
-                parsed_data["swbz_history"] = swbz_data["data"][:60]
+            # Bz (допускает минусовые значения, но не -9999)
+            if swbz_data and not swbz_data.get("error") and "data" in swbz_data:
+                bz_arr = [x for x in swbz_data["data"] if isinstance(x, dict) and self._is_valid_bz(x.get("bz"))]
+                if bz_arr:
+                    parsed_data["sw_bz"] = str(bz_arr[0].get("bz", "0.0"))
+                    parsed_data["swbz_history"] = bz_arr[:60]
 
-            if swt_data and not swt_data.get("error") and "data" in swt_data and len(swt_data["data"]) > 0:
-                parsed_data["sw_temp"] = str(swt_data["data"][0].get("t", "0"))
-                parsed_data["swt_history"] = swt_data["data"][:60]
+            # Температура
+            if swt_data and not swt_data.get("error") and "data" in swt_data:
+                t_arr = [x for x in swt_data["data"] if isinstance(x, dict) and self._is_valid_value(x.get("t"))]
+                if t_arr:
+                    parsed_data["sw_temp"] = str(t_arr[0].get("t", "0"))
+                    parsed_data["swt_history"] = t_arr[:60]
 
-            if swn_data and not swn_data.get("error") and "data" in swn_data and len(swn_data["data"]) > 0:
-                parsed_data["sw_density"] = str(swn_data["data"][0].get("n", "0.0"))
-                parsed_data["swn_history"] = swn_data["data"][:60]
+            # Плотность
+            if swn_data and not swn_data.get("error") and "data" in swn_data:
+                n_arr = [x for x in swn_data["data"] if isinstance(x, dict) and self._is_valid_value(x.get("n"))]
+                if n_arr:
+                    parsed_data["sw_density"] = str(n_arr[0].get("n", "0.0"))
+                    parsed_data["swn_history"] = n_arr[:60]
+
 
             # 6. ВЕРОЯТНОСТЬ БУРЬ И ДЕТАЛЬНЫЙ 3-ДНЕВНЫЙ ПРОГНОЗ
             parsed_data["storm_prob_today"] = [15, 30, 55]
